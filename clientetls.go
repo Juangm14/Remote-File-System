@@ -31,19 +31,25 @@ func validarConstraseña(s string) bool {
 	lower := false
 	number := false
 	symbol := false
-
+	fmt.Println(s)
 	if len(s) < 10 {
+		
+	fmt.Println(string(len(s)) + " Que")
 		return false
 	}
 
 	for _, r := range s {
 		if unicode.IsUpper(r) && unicode.IsLetter(r) {
+			fmt.Println("Upper")
 			upper = true
 		} else if unicode.IsLower(r) && unicode.IsLetter(r) {
 			lower = true
-		} else if unicode.IsNumber(r) {
+			fmt.Println("Lower")
+		} else if unicode.IsDigit(r) {
+			fmt.Println("IsDigit")
 			number = true
 		} else if unicode.IsSymbol(r) {
+			fmt.Println("IsSymbol")
 			symbol = true
 		}
 	}
@@ -72,7 +78,7 @@ func iniciarSesion() string {
 		password = scanner.Text()
 
 	}
-	return "1" + name + "|" + password
+	return "1#" + name + "|" + password
 }
 
 func registro() string {
@@ -112,7 +118,7 @@ func registro() string {
 	//Ahora hasheamos la contraseña para la seguridad en la comunicacion entre cliente y servidor ( a parte de tener tls )
 	password = string(hashPassword([]byte(password)))
 	fmt.Println(password)
-	return "2" + name + "|" + password
+	return "2#" + name + "|" + password
 }
 
 func client(ip string, port string) {

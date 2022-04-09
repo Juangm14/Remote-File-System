@@ -54,6 +54,19 @@ func validarUsuario(sesion string) string {
 func registrarUsuario(sesion string) string {
 	return "hla"
 }
+func splitFunc(s string) (string,string){
+	action:=""
+	user:=""
+	isUser:=false
+	for _, r := range s {
+		if isUser && r != '#'{
+			action = action + string(r)
+		}else{
+			user = user + string(r)
+		}
+	}
+	return action,user
+}
 
 func servidor(ip string, port string) {
 	// cargamos el par certificado / clave privada
@@ -86,12 +99,12 @@ func servidor(ip string, port string) {
 				msg := scanner.Text()
 				fmt.Println("cliente[", port, "]: ", msg) // mostramos el mensaje del cliente
 
-				action := string(msg[0])
+				action,user := splitFunc(msg)
 
 				if action == "1" {
-					fmt.Fprintln(conn, "ack: ", validarUsuario(msg))
+					fmt.Fprintln(conn, "ack: ", validarUsuario(user))
 				} else if action == "2" {
-					fmt.Fprintln(conn, "ack: ", registrarUsuario(msg))
+					fmt.Fprintln(conn, "ack: ", registrarUsuario(user))
 				}
 				// enviamos ack al cliente
 			}
