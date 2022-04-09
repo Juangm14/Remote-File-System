@@ -51,6 +51,10 @@ func validarUsuario(sesion string) string {
 	return "Las credenciales no so correctas, intentalo de nuevo."
 }
 
+func registrarUsuario(sesion string) string {
+	return "hla"
+}
+
 func servidor(ip string, port string) {
 	// cargamos el par certificado / clave privada
 	cert, err := tls.LoadX509KeyPair("./tls/localhost.crt", "./tls/localhost.key")
@@ -79,9 +83,17 @@ func servidor(ip string, port string) {
 			scanner := bufio.NewScanner(conn) // el scanner nos permite trabajar con la entrada línea a línea (por defecto)
 
 			for scanner.Scan() { // escaneamos la conexión
-				fmt.Println("cliente[", port, "]: ", scanner.Text()) // mostramos el mensaje del cliente
+				msg := scanner.Text()
+				fmt.Println("cliente[", port, "]: ", msg) // mostramos el mensaje del cliente
 
-				fmt.Fprintln(conn, "ack: ", validarUsuario(scanner.Text())) // enviamos ack al cliente
+				action := string(msg[0])
+
+				if action == "1" {
+					fmt.Fprintln(conn, "ack: ", validarUsuario(msg))
+				} else if action == "2" {
+					fmt.Fprintln(conn, "ack: ", registrarUsuario(msg))
+				}
+				// enviamos ack al cliente
 			}
 
 			conn.Close() // cerramos al finalizar el cliente (EOF se envía con ctrl+d o ctrl+z según el sistema)
