@@ -61,8 +61,10 @@ func splitFunc(s string) (string,string){
 	for _, r := range s {
 		if isUser && r != '#'{
 			action = action + string(r)
-		}else{
+		}else if r!= '#'{
 			user = user + string(r)
+		}else{
+			isUser=true;
 		}
 	}
 	return action,user
@@ -99,8 +101,8 @@ func servidor(ip string, port string) {
 				msg := scanner.Text()
 				fmt.Println("cliente[", port, "]: ", msg) // mostramos el mensaje del cliente
 
-				action,user := splitFunc(msg)
-
+				user,action := splitFunc(msg)
+				fmt.Println(action + " " + user)
 				if action == "1" {
 					fmt.Fprintln(conn, "ack: ", validarUsuario(user))
 				} else if action == "2" {

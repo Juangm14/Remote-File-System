@@ -30,31 +30,21 @@ func validarConstraseña(s string) bool {
 	upper := false
 	lower := false
 	number := false
-	symbol := false
-	fmt.Println(s)
 	if len(s) < 10 {
-		
-	fmt.Println(string(len(s)) + " Que")
 		return false
 	}
 
 	for _, r := range s {
 		if unicode.IsUpper(r) && unicode.IsLetter(r) {
-			fmt.Println("Upper")
 			upper = true
 		} else if unicode.IsLower(r) && unicode.IsLetter(r) {
 			lower = true
-			fmt.Println("Lower")
 		} else if unicode.IsDigit(r) {
-			fmt.Println("IsDigit")
 			number = true
-		} else if unicode.IsSymbol(r) {
-			fmt.Println("IsSymbol")
-			symbol = true
 		}
 	}
 
-	return (upper && lower && number && symbol)
+	return (upper && lower && number)
 }
 
 func hashPassword(password []byte) []byte {
@@ -105,7 +95,7 @@ func registro() string {
 			password = scanner.Text()
 			validation = validarConstraseña(password)
 			if !validation {
-				fmt.Println("La contraseña no cumple los requisitos (require una minuscula, una mayuscula, un numero, un simbolo y tamaño minimo de 10)")
+				fmt.Println("La contraseña no cumple los requisitos (require una minuscula, una mayuscula, un numero y tamaño minimo de 10)")
 			}
 		}
 		for !validarConstraseña(password2) {
