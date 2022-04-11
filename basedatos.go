@@ -8,13 +8,14 @@ import (
 
 func main() {
 	db, _ := sql.Open("sqlite3", "user.db")
-
-	sentencia := `CREATE TABLE salt(
-		userId INTEGER,
-		salt binary(256),
-		FOREIGN KEY (userId) 
-		   REFERENCES user (id)); `
-
+ /*
+	sentencia := `create table user(
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name text NOT NULL ,
+		password text NOT NULL
+	);`
+*/
+	sentencia := `drop table sqlite_sequence`
 	statement, _ := db.Exec(sentencia)
 
 	print(statement)

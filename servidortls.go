@@ -9,6 +9,9 @@ import (
 	"net"
 	"os"
 	"strings"
+	"crypto/sha512"
+	"golang.org/x/crypto/pbkdf2"
+	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -22,11 +25,7 @@ func checkError(e error) {
 func validarUsuario(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
 
-	defer db.Close()
-
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	
 
 	user := strings.Split(sesion, "|")
 
@@ -52,7 +51,51 @@ func validarUsuario(sesion string) string {
 }
 
 func registrarUsuario(sesion string) string {
-	return "hla"
+	db, err := sql.Open("sqlite3", "user.db")
+	defer db.Close()
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	user := strings.Split(sesion, "|")
+	salt:= make([]byte,32)
+	password:= pbkdf2.Key([]byte(user[1]),salt,4096,32,sha512.New512_256)
+	sentencia := `insert into user (name,password) values (?, ?)`
+
+	statement, err := db.Prepare(sentencia)
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	v,err := statement.Exec(user[0], password)
+	if err!=nil {
+		return "No se ha podido registrar el usuario"
+	}else if v!= nil {
+		sentenciaUser:=`select id from user where name=?`
+		statement, err = db.Prepare(sentenciaUser)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		v2:= statement.QueryRow(user[0])
+		sentenciaSal := `insert into salt (userId,salt) values (?, ?)`
+		statement, err = db.Prepare(sentenciaSal)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		var userIDs string
+		v2.Scan(&userIDs)
+		userID,err :=strconv.Atoi(userIDs)
+		if err != nil{
+			fmt.Println("Error con el select")
+		}
+		v,err = statement.Exec(userID, salt)
+		return "Se ha registrado correctamente. " + user[0] + ", bienvenido a tu sistema de archivos"
+	}
+	return "hola"
+
+	
 }
 func splitFunc(s string) (string,string){
 	action:=""
