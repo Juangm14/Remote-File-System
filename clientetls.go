@@ -66,7 +66,7 @@ func iniciarSesion() string {
 		fmt.Println("Introduce tu contraseña: ")
 		scanner.Scan()
 		password = scanner.Text()
-
+		password = string(hashPassword([]byte(password)))
 	}
 	return "1#" + name + "|" + password
 }

@@ -29,7 +29,8 @@ func validarUsuario(sesion string) string {
 
 	user := strings.Split(sesion, "|")
 
-	sentencia := `Select name, password from user where name = ? and password = ?`
+	
+	sentencia := `Select name, password, id from user where name = ?`
 
 	statement, err := db.Prepare(sentencia)
 
@@ -37,13 +38,35 @@ func validarUsuario(sesion string) string {
 		log.Fatalln(err.Error())
 	}
 
-	validacion := statement.QueryRow(user[0], user[1])
+	validacion := statement.QueryRow(user[0])
+
+	
+
 	var name string
 	var password string
+	var id string
+	validacion.Scan(&name, &password,&id)
+	userID,err :=strconv.Atoi(id)
+	
+	sentenciaSalt := `Select salt from salt where userId = ? `
+	statementSalt, err := db.Prepare(sentenciaSalt)
 
-	validacion.Scan(&name, &password)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
 
-	if name == user[0] {
+	validacionSalt := statementSalt.QueryRow(userID)
+
+	var saltS string
+
+	validacionSalt.Scan(&saltS)
+
+	salt:=[]byte(saltS)
+
+	
+	passwordSalted:= pbkdf2.Key([]byte(user[1]),salt,4096,32,sha512.New512_256)
+
+	if name == user[0] && string(passwordSalted)==password {
 		return "Has iniciado sesion correctamente."
 	}
 
