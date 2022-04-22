@@ -70,16 +70,37 @@ func iniciarSesion() string {
 	}
 	return "1#" + name + "|" + password
 }
-
+func validarNombre(s string) int{
+	valido:=1
+	for _, r := range s {
+		if r=='#' || r=='|'{
+			valido= -1
+			break
+		}
+		if len(s)==1 && r=='0'{
+			valido= -2
+			break
+		}
+	}
+	return valido
+}
 func registro() string {
 	name := ""
 	scanner := bufio.NewScanner(os.Stdin)
-	for name == "" {
-		fmt.Println("Introduce tu nombre de usuario ")
+	nameValid:= -1
+	fmt.Println("Introduce tu nombre de usuario ")
+	for name == "" || nameValid == -1{
 		scanner.Scan()
 		name = scanner.Text()
+		nameValid= validarNombre(name)
+		if nameValid == -1  || name==""{
+		fmt.Println("El nombre de usuario no es válido, vuelva a introducirlo (escriba 0 solo si quieres salir)")
+		name =""
+		}
 	}
-
+	if(nameValid==-2){
+		return "Has salido correctamente"
+	}
 	password := ""
 	password2 := ""
 
@@ -138,10 +159,14 @@ func client(ip string, port string) {
 			fmt.Println("servidor: " + netscan.Text())
 		} else if salida == "2" {
 			user := registro()
-			netscan := bufio.NewScanner(conn)
-			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
-			netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
-			fmt.Println("servidor: " + netscan.Text())
+			if(user!="Has salido correctamente"){
+				netscan := bufio.NewScanner(conn)
+				fmt.Fprintln(conn, user) // enviamos la entrada al servidor
+				netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
+				fmt.Println("servidor: " + netscan.Text())
+			}else{
+				fmt.Println(user)
+			}
 		}
 	}
 }
