@@ -2,16 +2,17 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha512"
 	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"strings"
-	"crypto/sha512"
-	"golang.org/x/crypto/pbkdf2"
 	"strconv"
+	"strings"
+
+	"golang.org/x/crypto/pbkdf2"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -22,14 +23,11 @@ func checkError(e error) {
 	}
 }
 
-func validarUsuario(sesion string) string {
+func validarUsuario(sesion string) int {
 	db, err := sql.Open("sqlite3", "user.db")
-
-	
 
 	user := strings.Split(sesion, "|")
 
-	
 	sentencia := `Select name, password, id from user where name = ?`
 
 	statement, err := db.Prepare(sentencia)
@@ -40,14 +38,12 @@ func validarUsuario(sesion string) string {
 
 	validacion := statement.QueryRow(user[0])
 
-	
-
 	var name string
 	var password string
 	var id string
-	validacion.Scan(&name, &password,&id)
-	userID,err :=strconv.Atoi(id)
-	
+	validacion.Scan(&name, &password, &id)
+	userID, err := strconv.Atoi(id)
+
 	sentenciaSalt := `Select salt from salt where userId = ? `
 	statementSalt, err := db.Prepare(sentenciaSalt)
 
@@ -61,19 +57,18 @@ func validarUsuario(sesion string) string {
 
 	validacionSalt.Scan(&saltS)
 
-	salt:=[]byte(saltS)
+	salt := []byte(saltS)
 
-	
-	passwordSalted:= pbkdf2.Key([]byte(user[1]),salt,4096,32,sha512.New512_256)
+	passwordSalted := pbkdf2.Key([]byte(user[1]), salt, 4096, 32, sha512.New512_256)
 
-	if name == user[0] && string(passwordSalted)==password {
-		return "Has iniciado sesion correctamente."
+	if name == user[0] && string(passwordSalted) == password {
+		return 3
 	}
 
-	return "Las credenciales no so correctas, intentalo de nuevo."
+	return 2
 }
 
-func registrarUsuario(sesion string) string {
+func registrarUsuario(sesion string) int {
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
 
@@ -82,8 +77,8 @@ func registrarUsuario(sesion string) string {
 	}
 
 	user := strings.Split(sesion, "|")
-	salt:= make([]byte,32)
-	password:= pbkdf2.Key([]byte(user[1]),salt,4096,32,sha512.New512_256)
+	salt := make([]byte, 32)
+	password := pbkdf2.Key([]byte(user[1]), salt, 4096, 32, sha512.New512_256)
 	sentencia := `insert into user (name,password) values (?, ?)`
 
 	statement, err := db.Prepare(sentencia)
@@ -92,16 +87,16 @@ func registrarUsuario(sesion string) string {
 		log.Fatalln(err.Error())
 	}
 
-	v,err := statement.Exec(user[0], password)
-	if err!=nil {
-		return "No se ha podido registrar el usuario"
-	}else if v!= nil {
-		sentenciaUser:=`select id from user where name=?`
+	v, err := statement.Exec(user[0], password)
+	if err != nil {
+		return 0
+	} else if v != nil {
+		sentenciaUser := `select id from user where name=?`
 		statement, err = db.Prepare(sentenciaUser)
 		if err != nil {
 			log.Fatalln(err.Error())
 		}
-		v2:= statement.QueryRow(user[0])
+		v2 := statement.QueryRow(user[0])
 		sentenciaSal := `insert into salt (userId,salt) values (?, ?)`
 		statement, err = db.Prepare(sentenciaSal)
 		if err != nil {
@@ -109,31 +104,31 @@ func registrarUsuario(sesion string) string {
 		}
 		var userIDs string
 		v2.Scan(&userIDs)
-		userID,err :=strconv.Atoi(userIDs)
-		if err != nil{
+		userID, err := strconv.Atoi(userIDs)
+		if err != nil {
 			fmt.Println("Error con el select")
 		}
-		v,err = statement.Exec(userID, salt)
-		return "Se ha registrado correctamente. " + user[0] + ", bienvenido a tu sistema de archivos"
+		v, err = statement.Exec(userID, salt)
+		return 1
 	}
-	return "hola"
 
-	
+	return -1
+
 }
-func splitFunc(s string) (string,string){
-	action:=""
-	user:=""
-	isUser:=false
+func splitFunc(s string) (string, string) {
+	action := ""
+	user := ""
+	isUser := false
 	for _, r := range s {
-		if isUser && r != '#'{
+		if isUser && r != '#' {
 			action = action + string(r)
-		}else if r!= '#'{
+		} else if r != '#' {
 			user = user + string(r)
-		}else{
-			isUser=true;
+		} else {
+			isUser = true
 		}
 	}
-	return action,user
+	return action, user
 }
 
 func servidor(ip string, port string) {
@@ -167,12 +162,12 @@ func servidor(ip string, port string) {
 				msg := scanner.Text()
 				fmt.Println("cliente[", port, "]: ", msg) // mostramos el mensaje del cliente
 
-				user,action := splitFunc(msg)
+				user, action := splitFunc(msg)
 				fmt.Println(action + " " + user)
 				if action == "1" {
-					fmt.Fprintln(conn, "ack: ", validarUsuario(user))
+					fmt.Fprintln(conn, validarUsuario(user))
 				} else if action == "2" {
-					fmt.Fprintln(conn, "ack: ", registrarUsuario(user))
+					fmt.Fprintln(conn, registrarUsuario(user))
 				}
 				// enviamos ack al cliente
 			}

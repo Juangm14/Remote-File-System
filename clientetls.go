@@ -2,12 +2,50 @@ package main
 
 import (
 	"bufio"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha512"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
+	"strings"
 	"unicode"
 )
+
+func msg(valor int, user string) string {
+	switch valor {
+	case 0:
+		return "Ya hay un usuario registrado con este nombre"
+	case 1:
+		return "Se ha registrado correctamente. " + user + ", bienvenido a tu sistema de archivos "
+	case 2:
+		return "Las credenciales no so correctas, intentalo de nuevo."
+	case 3:
+		return "Has iniciado sesion correctamente."
+	default:
+		return "Ha habido un error inesperado en el servidor. Intentalo de nuevo."
+	}
+}
+
+func splitFunc(s string) (string, string) {
+	action := ""
+	user := ""
+	isUser := false
+	for _, r := range s {
+		if isUser && r != '#' {
+			action = action + string(r)
+		} else if r != '#' {
+			user = user + string(r)
+		} else {
+			isUser = true
+		}
+	}
+	return action, user
+}
 
 func checkError(e error) {
 	if e != nil {
@@ -24,6 +62,25 @@ func menu() string {
 	scanner.Scan()
 	msg := scanner.Text()
 	return msg
+}
+
+func EncryptMessage(key []byte, message string) (string, error) {
+	byteMsg := []byte(message)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("could not create new cipher: %v", err)
+	}
+
+	cipherText := make([]byte, aes.BlockSize+len(byteMsg))
+	iv := cipherText[:aes.BlockSize]
+	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
+		return "", fmt.Errorf("could not encrypt: %v", err)
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(cipherText[aes.BlockSize:], byteMsg)
+
+	return base64.StdEncoding.EncodeToString(cipherText), nil
 }
 
 func validarConstraseña(s string) bool {
@@ -68,17 +125,23 @@ func iniciarSesion() string {
 		password = scanner.Text()
 		password = string(hashPassword([]byte(password)))
 	}
-	return "1#" + name + "|" + password
+
+	key := []byte(password[0:16])
+	nameEnc, _ := EncryptMessage(key, name)
+	print(nameEnc)
+
+	return "1#" + nameEnc + "|" + password
 }
-func validarNombre(s string) int{
-	valido:=1
+
+func validarNombre(s string) int {
+	valido := 1
 	for _, r := range s {
-		if r=='#' || r=='|'{
-			valido= -1
+		if r == '#' || r == '|' {
+			valido = -1
 			break
 		}
-		if len(s)==1 && r=='0'{
-			valido= -2
+		if len(s) == 1 && r == '0' {
+			valido = -2
 			break
 		}
 	}
@@ -87,18 +150,18 @@ func validarNombre(s string) int{
 func registro() string {
 	name := ""
 	scanner := bufio.NewScanner(os.Stdin)
-	nameValid:= -1
+	nameValid := -1
 	fmt.Println("Introduce tu nombre de usuario ")
-	for name == "" || nameValid == -1{
+	for name == "" || nameValid == -1 {
 		scanner.Scan()
 		name = scanner.Text()
-		nameValid= validarNombre(name)
-		if nameValid == -1  || name==""{
-		fmt.Println("El nombre de usuario no es válido, vuelva a introducirlo (escriba 0 solo si quieres salir)")
-		name =""
+		nameValid = validarNombre(name)
+		if nameValid == -1 || name == "" {
+			fmt.Println("El nombre de usuario no es válido, vuelva a introducirlo (escriba 0 solo si quieres salir)")
+			name = ""
 		}
 	}
-	if(nameValid==-2){
+	if nameValid == -2 {
 		return "Has salido correctamente"
 	}
 	password := ""
@@ -127,9 +190,14 @@ func registro() string {
 	}
 
 	//Ahora hasheamos la contraseña para la seguridad en la comunicacion entre cliente y servidor ( a parte de tener tls )
-	password = string(hashPassword([]byte(password)))
-	fmt.Println(password)
-	return "2#" + name + "|" + password
+	hashPassword := hashPassword([]byte(password))
+	password = string(hashPassword)
+
+	key := []byte(hashPassword[0:16])
+	nameEnc, err := EncryptMessage(key, name)
+	print(err)
+
+	return "2#" + nameEnc + "|" + password
 }
 
 func client(ip string, port string) {
@@ -156,15 +224,20 @@ func client(ip string, port string) {
 			netscan := bufio.NewScanner(conn)
 			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
 			netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
-			fmt.Println("servidor: " + netscan.Text())
+
+			numero, _ := strconv.Atoi(strings.TrimSpace(netscan.Text()))
+
+			_, user = splitFunc(user)
+			fmt.Println("servidor: " + msg(numero, user))
+
 		} else if salida == "2" {
 			user := registro()
-			if(user!="Has salido correctamente"){
+			if user != "Has salido correctamente" {
 				netscan := bufio.NewScanner(conn)
 				fmt.Fprintln(conn, user) // enviamos la entrada al servidor
 				netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
 				fmt.Println("servidor: " + netscan.Text())
-			}else{
+			} else {
 				fmt.Println(user)
 			}
 		}
