@@ -2,14 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"crypto/sha512"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -64,6 +62,7 @@ func menu() string {
 	return msg
 }
 
+/*
 func EncryptMessage(key []byte, message string) (string, error) {
 	byteMsg := []byte(message)
 	block, err := aes.NewCipher(key)
@@ -81,6 +80,25 @@ func EncryptMessage(key []byte, message string) (string, error) {
 	stream.XORKeyStream(cipherText[aes.BlockSize:], byteMsg)
 
 	return base64.StdEncoding.EncodeToString(cipherText), nil
+}*/
+
+func PKCS7Padding(ciphertext []byte, blockSize int) []byte {
+	padding := blockSize - len(ciphertext)%blockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(ciphertext, padtext...)
+}
+
+func AesEncrypt(origData, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	blockSize := block.BlockSize()
+	origData = PKCS7Padding(origData, blockSize)
+	blockMode := cipher.NewCBCEncrypter(block, key[:blockSize])
+	crypted := make([]byte, len(origData))
+	blockMode.CryptBlocks(crypted, origData)
+	return crypted, nil
 }
 
 func validarConstraseña(s string) bool {
@@ -127,10 +145,10 @@ func iniciarSesion() string {
 	}
 
 	key := []byte(password[0:16])
-	nameEnc, _ := EncryptMessage(key, name)
+	nameEnc, _ := AesEncrypt([]byte(name), key)
 	print(nameEnc)
 
-	return "1#" + nameEnc + "|" + password
+	return "1#" + string(nameEnc) + "|" + password
 }
 
 func validarNombre(s string) int {
@@ -194,10 +212,10 @@ func registro() string {
 	password = string(hashPassword)
 
 	key := []byte(hashPassword[0:16])
-	nameEnc, err := EncryptMessage(key, name)
+	nameEnc, err := AesEncrypt([]byte(name), key)
 	print(err)
 
-	return "2#" + nameEnc + "|" + password
+	return "2#" + string(nameEnc) + "|" + password
 }
 
 func client(ip string, port string) {
