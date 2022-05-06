@@ -109,6 +109,8 @@ func registrarUsuario(sesion string) int {
 			fmt.Println("Error con el select")
 		}
 		v, err = statement.Exec(userID, salt)
+		ruta := "./Servidor/" + user[0]
+		os.Mkdir(ruta, os.ModePerm)
 		return 1
 	}
 
