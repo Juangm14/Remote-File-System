@@ -14,6 +14,8 @@ import (
 	"unicode"
 )
 
+var token = ""
+
 func msg(valor int, user string) string {
 	switch valor {
 	case 0:
@@ -52,10 +54,19 @@ func checkError(e error) {
 }
 
 func menu() string {
-	fmt.Println("Bienvenido a tu Sistema de archivos seguro!")
-	fmt.Println("1. Iniciar Sesion")
-	fmt.Println("2. Registrarse")
-	fmt.Println("3. Salir")
+	fmt.Println("0. Salir")
+
+	if token == "" {
+		fmt.Println("1. Iniciar Sesion")
+		fmt.Println("2. Registrarse")
+	} else {
+		fmt.Println("1. Consultar mis archivos")
+		fmt.Println("2. Añadir un archivo al servidor")
+		fmt.Println("3. Descargar un archivo del servidor")
+		fmt.Println("4. Eliminar un archivo del servidor")
+		fmt.Println("5. Cerrar sesión")
+	}
+
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	msg := scanner.Text()
@@ -198,6 +209,13 @@ func registro() string {
 	return "2#" + string(nameEnc) + "|" + password
 }
 
+func añadirArchivo() string {
+
+	archivo := 
+
+	return archivo
+}
+
 func client(ip string, port string) {
 	// desactivamos la comprobación del certificado (útil en desarrollo con certificado autofirmado)
 	cfg := &tls.Config{InsecureSkipVerify: true}
@@ -211,13 +229,13 @@ func client(ip string, port string) {
 
 	//keyscan := bufio.NewScanner(os.Stdin) // scanner para la entrada estándar (teclado)
 	//netscan := bufio.NewScanner(conn)     // scanner para la conexión (datos desde el servidor)
-	salida := "0"
-
-	for salida != "3" {
+	salida := "-1"
+	fmt.Println("Bienvenido a tu Sistema de archivos seguro!")
+	for salida != "0" {
 
 		salida = menu()
 
-		if salida == "1" {
+		if salida == "1" && token == "" {
 			user := iniciarSesion() // scanner para la entrada estándar (teclado)
 			netscan := bufio.NewScanner(conn)
 			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
@@ -226,9 +244,10 @@ func client(ip string, port string) {
 			numero, _ := strconv.Atoi(strings.TrimSpace(netscan.Text()))
 
 			_, user = splitFunc(user)
+			token = user
 			fmt.Println("servidor: " + msg(numero, user))
 
-		} else if salida == "2" {
+		} else if salida == "2" && token == "" {
 			user := registro()
 			if user != "Has salido correctamente" {
 				netscan := bufio.NewScanner(conn)
@@ -237,6 +256,19 @@ func client(ip string, port string) {
 				fmt.Println("servidor: " + netscan.Text())
 			} else {
 				fmt.Println(user)
+			}
+		} else if token != "" {
+			if salida == "1" {
+
+			} else if salida == "2" {
+				añadirArchivo()
+			} else if salida == "3" {
+
+			} else if salida == "4" {
+
+			} else if salida == "5" {
+				fmt.Println("Has cerrado sesion correctamente. Esperamos que vuelvas pronto. :( ")
+				token = ""
 			}
 		}
 	}
