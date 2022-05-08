@@ -209,7 +209,7 @@ func registro() string {
 	return "2#" + string(nameEnc) + "|" + password
 }
 
-func añadirArchivo(conn *tls.Conn) string {
+func añadirArchivo(conn *tls.Conn) []byte {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("Escribe la ruta del archivo que quieres subir: ")
@@ -222,7 +222,7 @@ func añadirArchivo(conn *tls.Conn) string {
 
 	fileInformation, err := file.Stat()
 	checkError(err)
-	mensaje := "ROUTE:" + ruta + "|" + "SIZE:" + strconv.FormatInt(fileInformation.Size(), 10) + "|"
+	mensaje := "3#" + ruta + "|" + strconv.FormatInt(fileInformation.Size(), 10) + "|"
 
 	buff := make([]byte, fileInformation.Size())
 
@@ -231,9 +231,10 @@ func añadirArchivo(conn *tls.Conn) string {
 	if content == 0 {
 
 	}
-	print(mensaje, string(buff))
 
-	return "hola"
+	mensaje += string(buff)
+
+	return []byte(mensaje)
 }
 
 func client(ip string, port string) {
@@ -281,7 +282,11 @@ func client(ip string, port string) {
 			if salida == "1" {
 
 			} else if salida == "2" {
-				añadirArchivo(conn)
+				netscan := bufio.NewScanner(conn)
+				fileContent := añadirArchivo(conn)
+				fmt.Fprintln(conn, string(fileContent))
+				netscan.Scan()
+				fmt.Println("servidor: " + netscan.Text())
 			} else if salida == "3" {
 
 			} else if salida == "4" {

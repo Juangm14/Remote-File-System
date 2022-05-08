@@ -115,8 +115,14 @@ func registrarUsuario(sesion string) int {
 	}
 
 	return -1
-
 }
+
+func anñadirArchivo(mensaje string) int {
+	println("ESTO ES EL MENSAJE: " + mensaje)
+
+	return 1
+}
+
 func splitFunc(s string) (string, string) {
 	action := ""
 	user := ""
@@ -162,14 +168,17 @@ func servidor(ip string, port string) {
 
 			for scanner.Scan() { // escaneamos la conexión
 				msg := scanner.Text()
+				println(msg)
 				fmt.Println("cliente[", port, "]: ", msg) // mostramos el mensaje del cliente
 
-				user, action := splitFunc(msg)
-				fmt.Println(action + " " + user)
+				mensaje, action := splitFunc(msg)
+				fmt.Println(action + " " + mensaje)
 				if action == "1" {
-					fmt.Fprintln(conn, validarUsuario(user))
+					fmt.Fprintln(conn, validarUsuario(mensaje))
 				} else if action == "2" {
-					fmt.Fprintln(conn, registrarUsuario(user))
+					fmt.Fprintln(conn, registrarUsuario(mensaje))
+				} else if action == "3" {
+					fmt.Fprintln(conn, anñadirArchivo(mensaje))
 				}
 				// enviamos ack al cliente
 			}

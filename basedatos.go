@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"log"
+	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -27,7 +27,23 @@ func main() {
 		name text unique not null,
 		password text not null
 	)`*/
-	sentenciaUser := `select name from user where id=?`
+
+	sentencia := `create table file(
+		userId text not null,
+		name text not null,
+		version integer not null,
+		content text,
+		FOREIGN KEY (userId) REFERENCES user(userId) ON DELETE CASCADE ON UPDATE CASCADE,
+		PRIMARY KEY (userId, name, version)
+	)`
+	_, err := db.Exec(sentencia)
+
+	if err != nil {
+		fmt.Print(err.Error())
+	}
+
+	db.Close()
+	/*sentenciaUser := `select name from user where id=?`
 	statement, err := db.Prepare(sentenciaUser)
 	if err != nil {
 		log.Fatalln(err.Error())
@@ -36,5 +52,5 @@ func main() {
 
 	var name string
 	v2.Scan(&name)
-	println(name)
+	println(name)*/
 }
