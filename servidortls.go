@@ -117,13 +117,31 @@ func registrarUsuario(sesion string) int {
 	return -1
 }
 
-func anñadirArchivo(mensaje string) int {
-	println("ESTO ES EL MENSAJE: " + mensaje)
+func añadirArchivo(mensaje string) int {
+	/*db, err := sql.Open("sqlite3", "user.db")
+	defer db.Close()
 
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	db.Exec(`insert into file values (?, ? ,? ,?)`)
+
+	statement, err := db.Prepare(sentencia)
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	v, err := statement.Exec(3)
+	if err != nil {
+		return 0
+	}*/
 	return 1
 }
 
 func splitFunc(s string) (string, string) {
+
 	action := ""
 	user := ""
 	isUser := false
@@ -168,17 +186,16 @@ func servidor(ip string, port string) {
 
 			for scanner.Scan() { // escaneamos la conexión
 				msg := scanner.Text()
-				println(msg)
-				fmt.Println("cliente[", port, "]: ", msg) // mostramos el mensaje del cliente
+				print("HOLA")
 
 				mensaje, action := splitFunc(msg)
-				fmt.Println(action + " " + mensaje)
+
 				if action == "1" {
 					fmt.Fprintln(conn, validarUsuario(mensaje))
 				} else if action == "2" {
 					fmt.Fprintln(conn, registrarUsuario(mensaje))
 				} else if action == "3" {
-					fmt.Fprintln(conn, anñadirArchivo(mensaje))
+					fmt.Fprintln(conn, añadirArchivo(mensaje))
 				}
 				// enviamos ack al cliente
 			}
