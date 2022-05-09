@@ -208,17 +208,18 @@ func registro() string {
 
 	return "2#" + string(nameEnc) + "|" + password
 }
-func sacarNombreArchv(s string ) string {
-	pos:= -1
-	for i, r := range s{
-		if r=='\\'{
-			pos=i
+
+func sacarNombreArchv(s string) string {
+	pos := -1
+	for i, r := range s {
+		if r == '\\' {
+			pos = i
 		}
 	}
 
-	return s[pos+1:len(s)]
-
+	return s[pos+1 : len(s)]
 }
+
 func añadirArchivo(conn *tls.Conn) []byte {
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -232,7 +233,7 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	fileInformation, err := file.Stat()
 	checkError(err)
-	mensaje := "3#" + ruta + "|" + strconv.FormatInt(fileInformation.Size(), 10) + "|"
+	mensaje := "3#" + sacarNombreArchv(ruta) + "|" + strconv.FormatInt(fileInformation.Size(), 10) + "|"
 
 	buff := make([]byte, fileInformation.Size())
 

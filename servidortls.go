@@ -206,9 +206,9 @@ func servidor(ip string, port string) {
 					action = ""
 				} else if action == "3" {
 					if !strings.Contains(msg, "FIN") {
-						data += msg
+						data = data + msg
 					} else {
-						data += msg
+						data = data + msg
 						fmt.Fprintln(conn, añadirArchivo(data))
 						action = ""
 					}
