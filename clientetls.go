@@ -232,7 +232,7 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	}
 
-	mensaje += string(buff)
+	mensaje += string(buff) + "FIN"
 
 	return []byte(mensaje)
 }

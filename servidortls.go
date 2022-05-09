@@ -117,7 +117,9 @@ func registrarUsuario(sesion string) int {
 	return -1
 }
 
-func añadirArchivo(mensaje string) int {
+func añadirArchivo(msg string) int {
+
+	println("ESTO ES EL MENSAJE: " + msg)
 	/*db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
 
@@ -154,6 +156,7 @@ func splitFunc(s string) (string, string) {
 			isUser = true
 		}
 	}
+
 	return action, user
 }
 
@@ -183,20 +186,34 @@ func servidor(ip string, port string) {
 			fmt.Println("conexión: ", conn.LocalAddr(), " <--> ", conn.RemoteAddr())
 
 			scanner := bufio.NewScanner(conn) // el scanner nos permite trabajar con la entrada línea a línea (por defecto)
+			msg := ""
+			action := ""
+			mensaje := ""
+			data := ""
 
 			for scanner.Scan() { // escaneamos la conexión
-				msg := scanner.Text()
-				print("HOLA")
+				msg = scanner.Text()
 
-				mensaje, action := splitFunc(msg)
+				if action == "" {
+					mensaje, action = splitFunc(msg)
+				}
 
 				if action == "1" {
 					fmt.Fprintln(conn, validarUsuario(mensaje))
+					action = ""
 				} else if action == "2" {
 					fmt.Fprintln(conn, registrarUsuario(mensaje))
+					action = ""
 				} else if action == "3" {
-					fmt.Fprintln(conn, añadirArchivo(mensaje))
+					if !strings.Contains(msg, "FIN") {
+						data += msg
+					} else {
+						data += msg
+						fmt.Fprintln(conn, añadirArchivo(data))
+						action = ""
+					}
 				}
+
 				// enviamos ack al cliente
 			}
 
