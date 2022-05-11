@@ -243,7 +243,10 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	}
 
-	mensaje += string(buff) + "FIN"
+	key := []byte(token[0:16])
+	nameEnc, err := AesEncrypt(buff, key)
+
+	mensaje += string(nameEnc) + "FIN"
 
 	return []byte(mensaje)
 }
