@@ -16,6 +16,13 @@ import (
 
 var token = ""
 
+/*
+Observaciones prof.: Algunos comentarios (copio y pego): "Los archivos privados de cada usuario se cifrarán con RSA (clave pública) 3072 bits."
+No se cifra con clave pública información en general. En todo caso, se cifra con criptografía convencional y sólo la clave empleada (mucho menor en tamaño y por lo tanto en coste computacional)
+ se cifra con clave pública. "No tenemos muy claro donde almacenar las claves privadas (AES) de los usuarios."
+ Como comentamos por tutoría, las claves de los usuarios se derivan de su contraseña, pero no se almacenan, se mantienen en RAM mientras dure la sesión
+*/
+
 func msg(valor int, user string) string {
 	switch valor {
 	case 0:
@@ -118,7 +125,7 @@ func hashPassword(password []byte) []byte {
 	return hash[:]
 }
 
-func iniciarSesion() string {
+func iniciarSesion() (string, string) {
 	name := ""
 	scanner := bufio.NewScanner(os.Stdin)
 	for name == "" {
@@ -138,8 +145,8 @@ func iniciarSesion() string {
 	key := []byte(password[0:16])
 	nameEnc, _ := AesEncrypt([]byte(name), key)
 	print(nameEnc)
-
-	return "1#" + string(nameEnc) + "|" + password
+	mensaje := "1#" + string(nameEnc) + "|" + password
+	return mensaje, string(nameEnc)
 }
 
 func validarNombre(s string) int {
@@ -247,7 +254,7 @@ func añadirArchivo(conn *tls.Conn) []byte {
 	nameEnc, err := AesEncrypt(buff, key)
 
 	mensaje += string(nameEnc) + "FIN"
-
+	println("MENSAJE " + mensaje)
 	return []byte(mensaje)
 }
 
@@ -271,7 +278,7 @@ func client(ip string, port string) {
 		salida = menu()
 
 		if salida == "1" && token == "" {
-			user := iniciarSesion() // scanner para la entrada estándar (teclado)
+			user, userEncod := iniciarSesion() // scanner para la entrada estándar (teclado)
 			netscan := bufio.NewScanner(conn)
 			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
 			netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
@@ -279,7 +286,7 @@ func client(ip string, port string) {
 			numero, _ := strconv.Atoi(strings.TrimSpace(netscan.Text()))
 
 			_, user = splitFunc(user)
-			token = user
+			token = userEncod
 			fmt.Println("servidor: " + msg(numero, user))
 
 		} else if salida == "2" && token == "" {
