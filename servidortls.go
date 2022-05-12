@@ -119,15 +119,21 @@ func registrarUsuario(sesion string) int {
 
 func añadirArchivo(msg string) int {
 
-	println("ESTO ES EL MENSAJE: " + msg)
-	/*db, err := sql.Open("sqlite3", "user.db")
+	partesMensaje := strings.Split(msg, "|")
+
+	nombreArchivo := partesMensaje[0][2:len(partesMensaje[0])]
+	pesoArchivo := partesMensaje[1]
+	//user := partesMensaje[2]
+	contenido := partesMensaje[3]
+
+	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
 
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 
-	db.Exec(`insert into file values (?, ? ,? ,?)`)
+	sentencia := `insert into file values (?, ?, ?, ?, ?)`
 
 	statement, err := db.Prepare(sentencia)
 
@@ -135,10 +141,14 @@ func añadirArchivo(msg string) int {
 		log.Fatalln(err.Error())
 	}
 
-	v, err := statement.Exec(3)
+	println(2, nombreArchivo, pesoArchivo, 1)
+
+	_, err = statement.Exec(2, nombreArchivo, pesoArchivo, 1, contenido)
+
 	if err != nil {
+		println(err.Error())
 		return 0
-	}*/
+	}
 	return 1
 }
 
@@ -211,6 +221,7 @@ func servidor(ip string, port string) {
 						data = data + msg
 						fmt.Fprintln(conn, añadirArchivo(data))
 						action = ""
+						data = ""
 					}
 				}
 

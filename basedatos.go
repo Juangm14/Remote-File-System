@@ -31,6 +31,7 @@ func main() {
 	sentencia := `create table file(
 		userId text not null,
 		name text not null,
+		peso integer not null,
 		version integer not null,
 		content text,
 		FOREIGN KEY (userId) REFERENCES user(userId) ON DELETE CASCADE ON UPDATE CASCADE,

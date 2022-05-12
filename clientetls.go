@@ -80,6 +80,7 @@ func menu() string {
 	return msg
 }
 
+//CIFRADO
 func PKCS7Padding(ciphertext []byte, blockSize int) []byte {
 	padding := blockSize - len(ciphertext)%blockSize
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
@@ -97,6 +98,30 @@ func AesEncrypt(origData, key []byte) ([]byte, error) {
 	crypted := make([]byte, len(origData))
 	blockMode.CryptBlocks(crypted, origData)
 	return crypted, nil
+}
+
+//DESCIFRAR
+func PKCS7UnPadding(origData []byte) []byte {
+	length := len(origData)
+	unpadding := int(origData[length-1])
+	return origData[:(length - unpadding)]
+}
+
+func AESDecrypt(ciphertext, key []byte) []byte {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err.Error())
+	}
+	decrypted := make([]byte, len(ciphertext))
+	size := block.BlockSize()
+
+	for bs, be := 0, size; bs < len(ciphertext); bs, be = bs+size, be+size {
+		block.Decrypt(decrypted[bs:be], ciphertext[bs:be])
+	}
+
+	plaintext := PKCS7UnPadding(decrypted)
+
+	return plaintext
 }
 
 func validarConstraseña(s string) bool {
@@ -144,7 +169,7 @@ func iniciarSesion() (string, string) {
 
 	key := []byte(password[0:16])
 	nameEnc, _ := AesEncrypt([]byte(name), key)
-	print(nameEnc)
+
 	mensaje := "1#" + string(nameEnc) + "|" + password
 	return mensaje, string(nameEnc)
 }
@@ -229,6 +254,8 @@ func sacarNombreArchv(s string) string {
 
 func añadirArchivo(conn *tls.Conn) []byte {
 	scanner := bufio.NewScanner(os.Stdin)
+	//LLAVE DEL USUARIO PARA EL CIFRADO SIMETRICO
+	key := []byte(token[0:16])
 
 	fmt.Println("Escribe la ruta del archivo que quieres subir: ")
 	scanner.Scan()
@@ -240,21 +267,19 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	fileInformation, err := file.Stat()
 	checkError(err)
-	mensaje := "3#" + sacarNombreArchv(ruta) + "|" + strconv.FormatInt(fileInformation.Size(), 10) + "|"
+
+	nombreCifrado, err := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
+
+	mensaje := "3#" + string(nombreCifrado) + "|" + strconv.FormatInt(fileInformation.Size(), 10) + "|" + token + "|"
 
 	buff := make([]byte, fileInformation.Size())
 
-	content, err := file.Read(buff)
+	_, err = file.Read(buff)
 
-	if content == 0 {
-
-	}
-
-	key := []byte(token[0:16])
 	nameEnc, err := AesEncrypt(buff, key)
 
-	mensaje += string(nameEnc) + "FIN"
-	println("MENSAJE " + mensaje)
+	mensaje += string(nameEnc) + "|FIN"
+
 	return []byte(mensaje)
 }
 
@@ -286,7 +311,11 @@ func client(ip string, port string) {
 			numero, _ := strconv.Atoi(strings.TrimSpace(netscan.Text()))
 
 			_, user = splitFunc(user)
-			token = userEncod
+
+			if numero == 1 {
+				token = userEncod
+			}
+
 			fmt.Println("servidor: " + msg(numero, user))
 
 		} else if salida == "2" && token == "" {
