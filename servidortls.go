@@ -170,8 +170,6 @@ func añadirArchivo(msg string) int {
 	idUsuario := partesMensaje[2]
 	contenido := partesMensaje[3]
 
-	println("ID USUARIO: " + idUsuario)
-
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
 
