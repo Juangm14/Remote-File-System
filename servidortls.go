@@ -42,6 +42,8 @@ func validarUsuario(sesion string) int {
 	var password string
 	var id string
 	validacion.Scan(&name, &password, &id)
+
+	println(name)
 	userID, err := strconv.Atoi(id)
 
 	sentenciaSalt := `Select salt from salt where userId = ? `
@@ -118,14 +120,18 @@ func registrarUsuario(sesion string) int {
 }
 
 func getUser(nombre string) int {
-	sentenciaSelect := `select id from user where name = ?`
 
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
+
 	checkError(err)
-	statement := db.QueryRow(sentenciaSelect, nombre)
+	sentenciaSelect := `select id from user where name = ?`
+	statement, err := db.Prepare(sentenciaSelect)
+
+	validacion := statement.QueryRow(nombre)
+
 	var id int
-	statement.Scan(&id)
+	validacion.Scan(&id)
 
 	return id
 }
@@ -137,7 +143,9 @@ func getVersion(idUsuario int, nombreArchivo string) int {
 	defer db.Close()
 	checkError(err)
 
-	statement := db.QueryRow(sentenciaSelect, idUsuario, nombreArchivo)
+	statement, err := db.Prepare(sentenciaSelect)
+
+	validacion := statement.QueryRow(idUsuario, nombreArchivo)
 
 	var version int
 
@@ -145,7 +153,7 @@ func getVersion(idUsuario int, nombreArchivo string) int {
 		return 0
 	}
 
-	statement.Scan(&version)
+	validacion.Scan(&version)
 
 	return version
 }
@@ -157,6 +165,8 @@ func añadirArchivo(msg string) int {
 	nombreArchivo := partesMensaje[0][2:len(partesMensaje[0])]
 	pesoArchivo := partesMensaje[1]
 	nombreUsuario := partesMensaje[2]
+
+	println("USUARIO    " + nombreUsuario)
 	contenido := partesMensaje[3]
 
 	db, err := sql.Open("sqlite3", "user.db")
@@ -175,8 +185,6 @@ func añadirArchivo(msg string) int {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-
-	println(2, nombreArchivo, pesoArchivo, 1)
 
 	_, err = statement.Exec(idUsuario, nombreArchivo, pesoArchivo, version+1, contenido)
 

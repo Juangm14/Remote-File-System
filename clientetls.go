@@ -15,6 +15,7 @@ import (
 )
 
 var token = ""
+var key []byte
 
 /*
 Observaciones prof.: Algunos comentarios (copio y pego): "Los archivos privados de cada usuario se cifrarán con RSA (clave pública) 3072 bits."
@@ -167,7 +168,7 @@ func iniciarSesion() (string, string) {
 		password = string(hashPassword([]byte(password)))
 	}
 
-	key := []byte(password[0:16])
+	key = []byte(password[0:16])
 	nameEnc, _ := AesEncrypt([]byte(name), key)
 
 	mensaje := "1#" + string(nameEnc) + "|" + password
@@ -234,7 +235,7 @@ func registro() string {
 	hashPassword := hashPassword([]byte(password))
 	password = string(hashPassword)
 
-	key := []byte(hashPassword[0:16])
+	key = []byte(hashPassword[0:16])
 	nameEnc, err := AesEncrypt([]byte(name), key)
 	print(err)
 
@@ -255,7 +256,6 @@ func sacarNombreArchv(s string) string {
 func añadirArchivo(conn *tls.Conn) []byte {
 	scanner := bufio.NewScanner(os.Stdin)
 	//LLAVE DEL USUARIO PARA EL CIFRADO SIMETRICO
-	key := []byte(token[0:16])
 
 	fmt.Println("Escribe la ruta del archivo que quieres subir: ")
 	scanner.Scan()
@@ -314,6 +314,7 @@ func client(ip string, port string) {
 
 			if numero == 3 {
 				token = userEncod
+				println(token)
 			}
 
 			fmt.Println("servidor: " + msg(numero, user))
