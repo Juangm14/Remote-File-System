@@ -312,7 +312,7 @@ func client(ip string, port string) {
 
 			_, user = splitFunc(user)
 
-			if numero == 1 {
+			if numero == 3 {
 				token = userEncod
 			}
 

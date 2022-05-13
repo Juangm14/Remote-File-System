@@ -117,13 +117,46 @@ func registrarUsuario(sesion string) int {
 	return -1
 }
 
+func getUser(nombre string) int {
+	sentenciaSelect := `select id from user where name = ?`
+
+	db, err := sql.Open("sqlite3", "user.db")
+	defer db.Close()
+	checkError(err)
+	statement := db.QueryRow(sentenciaSelect, nombre)
+	var id int
+	statement.Scan(&id)
+
+	return id
+}
+
+func getVersion(idUsuario int, nombreArchivo string) int {
+	sentenciaSelect := `select MAX(version) from file where userId = ? and name = ?`
+
+	db, err := sql.Open("sqlite3", "user.db")
+	defer db.Close()
+	checkError(err)
+
+	statement := db.QueryRow(sentenciaSelect, idUsuario, nombreArchivo)
+
+	var version int
+
+	if statement == nil {
+		return 0
+	}
+
+	statement.Scan(&version)
+
+	return version
+}
+
 func añadirArchivo(msg string) int {
 
 	partesMensaje := strings.Split(msg, "|")
 
 	nombreArchivo := partesMensaje[0][2:len(partesMensaje[0])]
 	pesoArchivo := partesMensaje[1]
-	//user := partesMensaje[2]
+	nombreUsuario := partesMensaje[2]
 	contenido := partesMensaje[3]
 
 	db, err := sql.Open("sqlite3", "user.db")
@@ -133,6 +166,8 @@ func añadirArchivo(msg string) int {
 		log.Fatalln(err.Error())
 	}
 
+	idUsuario := getUser(nombreUsuario)
+	version := getVersion(idUsuario, nombreArchivo)
 	sentencia := `insert into file values (?, ?, ?, ?, ?)`
 
 	statement, err := db.Prepare(sentencia)
@@ -143,7 +178,7 @@ func añadirArchivo(msg string) int {
 
 	println(2, nombreArchivo, pesoArchivo, 1)
 
-	_, err = statement.Exec(2, nombreArchivo, pesoArchivo, 1, contenido)
+	_, err = statement.Exec(idUsuario, nombreArchivo, pesoArchivo, version+1, contenido)
 
 	if err != nil {
 		println(err.Error())
