@@ -24,7 +24,7 @@ No se cifra con clave pública información en general. En todo caso, se cifra c
  Como comentamos por tutoría, las claves de los usuarios se derivan de su contraseña, pero no se almacenan, se mantienen en RAM mientras dure la sesión
 */
 
-func msg(valor int, user string) string {
+func msgNumber(valor int64, user string) string {
 	switch valor {
 	case 0:
 		return "Ya hay un usuario registrado con este nombre"
@@ -151,7 +151,7 @@ func hashPassword(password []byte) []byte {
 	return hash[:]
 }
 
-func iniciarSesion() (string, string) {
+func iniciarSesion() string {
 	name := ""
 	scanner := bufio.NewScanner(os.Stdin)
 	for name == "" {
@@ -172,7 +172,7 @@ func iniciarSesion() (string, string) {
 	nameEnc, _ := AesEncrypt([]byte(name), key)
 
 	mensaje := "1#" + string(nameEnc) + "|" + password
-	return mensaje, string(nameEnc)
+	return mensaje
 }
 
 func validarNombre(s string) int {
@@ -255,7 +255,6 @@ func sacarNombreArchv(s string) string {
 
 func añadirArchivo(conn *tls.Conn) []byte {
 	scanner := bufio.NewScanner(os.Stdin)
-	//LLAVE DEL USUARIO PARA EL CIFRADO SIMETRICO
 
 	fmt.Println("Escribe la ruta del archivo que quieres subir: ")
 	scanner.Scan()
@@ -270,7 +269,8 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	nombreCifrado, err := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
 
-	mensaje := "3#" + string(nombreCifrado) + "|" + strconv.FormatInt(fileInformation.Size(), 10) + "|" + token + "|"
+	println("token: " + token)
+	mensaje := "3#" + string(nombreCifrado) + "| " + strconv.FormatInt(fileInformation.Size(), 10) + "| " + token + "| "
 
 	buff := make([]byte, fileInformation.Size())
 
@@ -278,7 +278,7 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	nameEnc, err := AesEncrypt(buff, key)
 
-	mensaje += string(nameEnc) + "|FIN"
+	mensaje += string(nameEnc) + "| FIN"
 
 	return []byte(mensaje)
 }
@@ -303,21 +303,28 @@ func client(ip string, port string) {
 		salida = menu()
 
 		if salida == "1" && token == "" {
-			user, userEncod := iniciarSesion() // scanner para la entrada estándar (teclado)
+			user := iniciarSesion() // scanner para la entrada estándar (teclado)
 			netscan := bufio.NewScanner(conn)
 			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
 			netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
 
-			numero, _ := strconv.Atoi(strings.TrimSpace(netscan.Text()))
+			msg := netscan.Text()
 
+			msgPartes := strings.Split(msg, "-")
+			numero, _ := strconv.ParseInt(msgPartes[0], 0, 64)
+
+			id := msgPartes[1]
+
+			if err != nil {
+				println("Error al convertir el id del usuario a integer.")
+			}
 			_, user = splitFunc(user)
 
 			if numero == 3 {
-				token = userEncod
-				println(token)
+				token = id
 			}
 
-			fmt.Println("servidor: " + msg(numero, user))
+			fmt.Println("servidor: " + msgNumber(numero, user))
 
 		} else if salida == "2" && token == "" {
 			user := registro()

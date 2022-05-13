@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/aes"
 	"crypto/sha512"
 	"crypto/tls"
 	"database/sql"
@@ -22,8 +23,29 @@ func checkError(e error) {
 		panic(e)
 	}
 }
+func PKCS7UnPadding(origData []byte) []byte {
+	length := len(origData)
+	unpadding := int(origData[length-1])
+	return origData[:(length - unpadding)]
+}
 
-func validarUsuario(sesion string) int {
+func AESDecrypt(ciphertext, key []byte) []byte {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err.Error())
+	}
+	decrypted := make([]byte, len(ciphertext))
+	size := block.BlockSize()
+
+	for bs, be := 0, size; bs < len(ciphertext); bs, be = bs+size, be+size {
+		block.Decrypt(decrypted[bs:be], ciphertext[bs:be])
+	}
+
+	plaintext := PKCS7UnPadding(decrypted)
+
+	return plaintext
+}
+func validarUsuario(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
 
 	user := strings.Split(sesion, "|")
@@ -43,9 +65,6 @@ func validarUsuario(sesion string) int {
 	var id string
 	validacion.Scan(&name, &password, &id)
 
-	println(name)
-	userID, err := strconv.Atoi(id)
-
 	sentenciaSalt := `Select salt from salt where userId = ? `
 	statementSalt, err := db.Prepare(sentenciaSalt)
 
@@ -53,7 +72,7 @@ func validarUsuario(sesion string) int {
 		log.Fatalln(err.Error())
 	}
 
-	validacionSalt := statementSalt.QueryRow(userID)
+	validacionSalt := statementSalt.QueryRow(id)
 
 	var saltS string
 
@@ -64,10 +83,11 @@ func validarUsuario(sesion string) int {
 	passwordSalted := pbkdf2.Key([]byte(user[1]), salt, 4096, 32, sha512.New512_256)
 
 	if name == user[0] && string(passwordSalted) == password {
-		return 3
+
+		return "3" + "-" + id
 	}
 
-	return 2
+	return "2" + "-" + id
 }
 
 func registrarUsuario(sesion string) int {
@@ -89,7 +109,7 @@ func registrarUsuario(sesion string) int {
 		log.Fatalln(err.Error())
 	}
 
-	v, err := statement.Exec(user[0], password)
+	v, err := statement.Exec(string(user[0]), password)
 	if err != nil {
 		return 0
 	} else if v != nil {
@@ -119,24 +139,7 @@ func registrarUsuario(sesion string) int {
 	return -1
 }
 
-func getUser(nombre string) int {
-
-	db, err := sql.Open("sqlite3", "user.db")
-	defer db.Close()
-
-	checkError(err)
-	sentenciaSelect := `select id from user where name = ?`
-	statement, err := db.Prepare(sentenciaSelect)
-
-	validacion := statement.QueryRow(nombre)
-
-	var id int
-	validacion.Scan(&id)
-
-	return id
-}
-
-func getVersion(idUsuario int, nombreArchivo string) int {
+func getVersion(idUsuario string, nombreArchivo string) int {
 	sentenciaSelect := `select MAX(version) from file where userId = ? and name = ?`
 
 	db, err := sql.Open("sqlite3", "user.db")
@@ -160,14 +163,14 @@ func getVersion(idUsuario int, nombreArchivo string) int {
 
 func añadirArchivo(msg string) int {
 
-	partesMensaje := strings.Split(msg, "|")
+	partesMensaje := strings.Split(msg, "| ")
 
 	nombreArchivo := partesMensaje[0][2:len(partesMensaje[0])]
 	pesoArchivo := partesMensaje[1]
-	nombreUsuario := partesMensaje[2]
-
-	println("USUARIO    " + nombreUsuario)
+	idUsuario := partesMensaje[2]
 	contenido := partesMensaje[3]
+
+	println("ID USUARIO: " + idUsuario)
 
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
@@ -176,7 +179,6 @@ func añadirArchivo(msg string) int {
 		log.Fatalln(err.Error())
 	}
 
-	idUsuario := getUser(nombreUsuario)
 	version := getVersion(idUsuario, nombreArchivo)
 	sentencia := `insert into file values (?, ?, ?, ?, ?)`
 
@@ -252,6 +254,7 @@ func servidor(ip string, port string) {
 				}
 
 				if action == "1" {
+
 					fmt.Fprintln(conn, validarUsuario(mensaje))
 					action = ""
 				} else if action == "2" {
