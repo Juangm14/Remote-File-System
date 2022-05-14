@@ -29,13 +29,14 @@ func main() {
 	)`*/
 
 	sentencia := `create table file(
+		id integer primary key autoincrement,
 		userId text not null,
-		name text not null,
+		name blob not null,
 		peso integer not null,
 		version integer not null,
 		content text,
 		FOREIGN KEY (userId) REFERENCES user(userId) ON DELETE CASCADE ON UPDATE CASCADE,
-		PRIMARY KEY (userId, name, version)
+		UNIQUE(userId, name, version)
 	)`
 	_, err := db.Exec(sentencia)
 

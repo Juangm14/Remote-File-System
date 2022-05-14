@@ -7,6 +7,7 @@ import (
 	"crypto/cipher"
 	"crypto/sha512"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
@@ -57,7 +58,7 @@ func splitFunc(s string) (string, string) {
 
 func checkError(e error) {
 	if e != nil {
-		panic(e)
+		println(e.Error())
 	}
 }
 
@@ -108,21 +109,41 @@ func PKCS7UnPadding(origData []byte) []byte {
 	return origData[:(length - unpadding)]
 }
 
-func AESDecrypt(ciphertext, key []byte) []byte {
+func AesDecrypt(crypted, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
-	decrypted := make([]byte, len(ciphertext))
-	size := block.BlockSize()
+	blockSize := block.BlockSize()
+	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
+	origData := make([]byte, len(crypted))
+	blockMode.CryptBlocks(origData, crypted)
+	origData = PKCS7UnPadding(origData)
+	return origData, nil
+}
 
-	for bs, be := 0, size; bs < len(ciphertext); bs, be = bs+size, be+size {
-		block.Decrypt(decrypted[bs:be], ciphertext[bs:be])
+func DecryptMessage(key []byte, message string) (string, error) {
+	cipherText, err := base64.RawStdEncoding.DecodeString(message)
+	if err != nil {
+		return "", fmt.Errorf("could not base64 decode: %v", err)
 	}
 
-	plaintext := PKCS7UnPadding(decrypted)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("could not create new cipher: %v", err)
+	}
 
-	return plaintext
+	if len(cipherText) < aes.BlockSize {
+		return "", fmt.Errorf("invalid ciphertext block size")
+	}
+
+	iv := cipherText[:aes.BlockSize]
+	cipherText = cipherText[aes.BlockSize:]
+
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(cipherText, cipherText)
+
+	return string(cipherText), nil
 }
 
 func validarConstraseña(s string) bool {
@@ -269,7 +290,6 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	nombreCifrado, err := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
 
-	println("token: " + token)
 	mensaje := "3#" + string(nombreCifrado) + "| " + strconv.FormatInt(fileInformation.Size(), 10) + "| " + token + "| "
 
 	buff := make([]byte, fileInformation.Size())
@@ -283,6 +303,29 @@ func añadirArchivo(conn *tls.Conn) []byte {
 	return []byte(mensaje)
 }
 
+func controladorConsulta(consulta string) {
+	consultas := strings.Split(consulta, "nuevaConsulta")
+	println("Estos son tus archivos:")
+	println("-------------------------------------------------------------------------------------")
+	println("  #| Nombre\t\t\tPeso\t\t\tVersion")
+	println("-------------------------------------------------------------------------------------")
+	for index, r := range consultas {
+		if len(r) > 0 {
+			datosArchivo := strings.Split(r, "|")
+			name, err := AesDecrypt([]byte(datosArchivo[0]), key)
+			checkError(err)
+			println("  " + strconv.Itoa(index) + ". " + string(name) + "\t\t\t" + datosArchivo[1] + "\t\t\t" + datosArchivo[2])
+			println("-------------------------------------------------------------------------------------")
+		}
+	}
+}
+
+func llamadaConsultar(conn *tls.Conn) {
+	netscan := bufio.NewScanner(conn)
+	fmt.Fprintln(conn, "4#"+token)
+	netscan.Scan()
+	controladorConsulta(netscan.Text())
+}
 func client(ip string, port string) {
 	// desactivamos la comprobación del certificado (útil en desarrollo con certificado autofirmado)
 	cfg := &tls.Config{InsecureSkipVerify: true}
@@ -338,7 +381,7 @@ func client(ip string, port string) {
 			}
 		} else if token != "" {
 			if salida == "1" {
-
+				llamadaConsultar(conn)
 			} else if salida == "2" {
 				netscan := bufio.NewScanner(conn)
 				fileContent := añadirArchivo(conn)

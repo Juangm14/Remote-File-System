@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/aes"
 	"crypto/sha512"
 	"crypto/tls"
 	"database/sql"
@@ -20,34 +19,35 @@ import (
 
 func checkError(e error) {
 	if e != nil {
-		panic(e)
+		println(e.Error())
 	}
 }
-func PKCS7UnPadding(origData []byte) []byte {
-	length := len(origData)
-	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
-}
 
-func AESDecrypt(ciphertext, key []byte) []byte {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err.Error())
+func consultarArchivos(sesion string) string {
+	db, err := sql.Open("sqlite3", "user.db")
+	checkError(err)
+	defer db.Close()
+	sentencia := `Select name, peso, version from file where userId = ?`
+
+	statement, err := db.Prepare(sentencia)
+	datos := ""
+	lineas, err := statement.Query(sesion)
+	checkError(err)
+	for lineas.Next() {
+
+		var name string
+		var peso string
+		var version string
+		lineas.Scan(&name, &peso, &version)
+		datos += "nuevaConsulta" + name + "|" + peso + "|" + version
+
 	}
-	decrypted := make([]byte, len(ciphertext))
-	size := block.BlockSize()
 
-	for bs, be := 0, size; bs < len(ciphertext); bs, be = bs+size, be+size {
-		block.Decrypt(decrypted[bs:be], ciphertext[bs:be])
-	}
-
-	plaintext := PKCS7UnPadding(decrypted)
-
-	return plaintext
+	return datos
 }
 func validarUsuario(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
-
+	defer db.Close()
 	user := strings.Split(sesion, "|")
 
 	sentencia := `Select name, password, id from user where name = ?`
@@ -178,7 +178,7 @@ func añadirArchivo(msg string) int {
 	}
 
 	version := getVersion(idUsuario, nombreArchivo)
-	sentencia := `insert into file values (?, ?, ?, ?, ?)`
+	sentencia := `insert into file (userId,name,peso,version,content) values (?, ?, ?, ?, ?)`
 
 	statement, err := db.Prepare(sentencia)
 
@@ -251,14 +251,14 @@ func servidor(ip string, port string) {
 					mensaje, action = splitFunc(msg)
 				}
 
-				if action == "1" {
+				if action == "1" { //Inicio Sesion
 
 					fmt.Fprintln(conn, validarUsuario(mensaje))
 					action = ""
-				} else if action == "2" {
+				} else if action == "2" { //Registrarse
 					fmt.Fprintln(conn, registrarUsuario(mensaje))
 					action = ""
-				} else if action == "3" {
+				} else if action == "3" { //Añadir Archivo
 					if !strings.Contains(msg, "FIN") {
 						data = data + msg
 					} else {
@@ -267,6 +267,9 @@ func servidor(ip string, port string) {
 						action = ""
 						data = ""
 					}
+				} else if action == "4" { //Consultar archivos
+					fmt.Fprintln(conn, consultarArchivos(mensaje))
+					action = ""
 				}
 
 				// enviamos ack al cliente
