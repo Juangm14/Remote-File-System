@@ -346,11 +346,11 @@ func eliminarArchivo(conn *tls.Conn, ids []string) int {
 
 	netscan := bufio.NewScanner(conn)
 
-	fmt.Fprintln(conn, "5#"+token+"|"+idArchivo)
+	fmt.Fprintln(conn, "6#"+token+"|"+idArchivo)
 	netscan.Scan()
 	fmt.Println("servidor: " + netscan.Text())
 
-	return
+	return 1
 }
 
 func client(ip string, port string) {
@@ -417,10 +417,10 @@ func client(ip string, port string) {
 				netscan.Scan()
 				fmt.Println("servidor: " + netscan.Text())
 			} else if salida == "3" {
+
+			} else if salida == "4" {
 				ids := llamadaConsultar(conn)
 				eliminarArchivo(conn, ids)
-			} else if salida == "4" {
-
 			} else if salida == "5" {
 				fmt.Println("Has cerrado sesion correctamente. Esperamos que vuelvas pronto. :( ")
 				token = ""
