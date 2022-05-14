@@ -303,29 +303,56 @@ func añadirArchivo(conn *tls.Conn) []byte {
 	return []byte(mensaje)
 }
 
-func controladorConsulta(consulta string) {
+func controladorConsulta(consulta string) []string {
+
+	println(consulta)
 	consultas := strings.Split(consulta, "nuevaConsulta")
+
 	println("Estos son tus archivos:")
 	println("-------------------------------------------------------------------------------------")
-	println("  #| Nombre\t\t\tPeso\t\t\tVersion")
+	println("  #  | Nombre\t\t\tPeso\t\t\tVersion")
 	println("-------------------------------------------------------------------------------------")
+
+	var ids []string
+
 	for index, r := range consultas {
 		if len(r) > 0 {
 			datosArchivo := strings.Split(r, "|")
-			name, err := AesDecrypt([]byte(datosArchivo[0]), key)
+			ids = append(ids, datosArchivo[0])
+			name, err := AesDecrypt([]byte(datosArchivo[1]), key)
 			checkError(err)
-			println("  " + strconv.Itoa(index) + ". " + string(name) + "\t\t\t" + datosArchivo[1] + "\t\t\t" + datosArchivo[2])
+			println("  " + strconv.Itoa(index) + ".  " + string(name) + "\t\t\t" + datosArchivo[2] + "\t\t\t" + datosArchivo[3])
 			println("-------------------------------------------------------------------------------------")
 		}
 	}
+
+	return ids
 }
 
-func llamadaConsultar(conn *tls.Conn) {
+func llamadaConsultar(conn *tls.Conn) []string {
 	netscan := bufio.NewScanner(conn)
 	fmt.Fprintln(conn, "4#"+token)
 	netscan.Scan()
-	controladorConsulta(netscan.Text())
+	return controladorConsulta(netscan.Text())
 }
+
+func eliminarArchivo(conn *tls.Conn, ids []string) int {
+
+	var posicion int
+	println("Introduce el la posicion del archivo a eliminar: ")
+	fmt.Scan(&posicion)
+
+	idArchivo := ids[posicion-1]
+
+	netscan := bufio.NewScanner(conn)
+
+	fmt.Fprintln(conn, "5#"+token+"|"+idArchivo)
+	netscan.Scan()
+	fmt.Println("servidor: " + netscan.Text())
+
+	return
+}
+
 func client(ip string, port string) {
 	// desactivamos la comprobación del certificado (útil en desarrollo con certificado autofirmado)
 	cfg := &tls.Config{InsecureSkipVerify: true}
@@ -381,7 +408,8 @@ func client(ip string, port string) {
 			}
 		} else if token != "" {
 			if salida == "1" {
-				llamadaConsultar(conn)
+				ids := llamadaConsultar(conn)
+				ids = ids
 			} else if salida == "2" {
 				netscan := bufio.NewScanner(conn)
 				fileContent := añadirArchivo(conn)
@@ -389,7 +417,8 @@ func client(ip string, port string) {
 				netscan.Scan()
 				fmt.Println("servidor: " + netscan.Text())
 			} else if salida == "3" {
-
+				ids := llamadaConsultar(conn)
+				eliminarArchivo(conn, ids)
 			} else if salida == "4" {
 
 			} else if salida == "5" {

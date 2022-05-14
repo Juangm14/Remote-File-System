@@ -27,19 +27,22 @@ func consultarArchivos(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
 	checkError(err)
 	defer db.Close()
-	sentencia := `Select name, peso, version from file where userId = ?`
+	sentencia := `Select id, name, peso, version from file where userId = ?`
 
 	statement, err := db.Prepare(sentencia)
 	datos := ""
 	lineas, err := statement.Query(sesion)
 	checkError(err)
+
 	for lineas.Next() {
 
 		var name string
+		var id string
 		var peso string
 		var version string
-		lineas.Scan(&name, &peso, &version)
-		datos += "nuevaConsulta" + name + "|" + peso + "|" + version
+		lineas.Scan(&id, &name, &peso, &version)
+
+		datos += "nuevaConsulta" + id + "|" + name + "|" + peso + "|" + version
 
 	}
 
@@ -195,6 +198,35 @@ func añadirArchivo(msg string) int {
 	return 1
 }
 
+func eliminarArchivo(mensaje string) string {
+
+	ids := strings.Split(mensaje, "|")
+	userID := ids[0]
+	fileID := ids[1]
+	db, err := sql.Open("sqlite3", "user.db")
+	defer db.Close()
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	sentencia := `delete from file where userId = ? and id = ?`
+
+	statement, err := db.Prepare(sentencia)
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	_, err = statement.Exec(userID, fileID)
+
+	if err == nil {
+		return "Eliminado"
+	}
+
+	return "Error"
+
+}
+
 func splitFunc(s string) (string, string) {
 
 	action := ""
@@ -270,6 +302,8 @@ func servidor(ip string, port string) {
 				} else if action == "4" { //Consultar archivos
 					fmt.Fprintln(conn, consultarArchivos(mensaje))
 					action = ""
+				} else if action == "5" {
+					fmt.Fprintln(conn, eliminarArchivo(mensaje))
 				}
 
 				// enviamos ack al cliente
