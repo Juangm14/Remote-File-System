@@ -300,11 +300,12 @@ func servidor(ip string, port string) {
 						data = ""
 					}
 				} else if action == "4" { //Consultar archivos
+					action = ""
 					fmt.Fprintln(conn, consultarArchivos(mensaje))
-					action = ""
 				} else if action == "6" {
-					fmt.Fprintln(conn, eliminarArchivo(mensaje))
 					action = ""
+					fmt.Fprintln(conn, eliminarArchivo(mensaje))
+
 				}
 
 				// enviamos ack al cliente

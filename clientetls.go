@@ -76,9 +76,8 @@ func menu() string {
 		fmt.Println("5. Cerrar sesión")
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	msg := scanner.Text()
+	var msg string
+	fmt.Scan(&msg)
 	return msg
 }
 
@@ -173,19 +172,17 @@ func hashPassword(password []byte) []byte {
 }
 
 func iniciarSesion() string {
-	name := ""
-	scanner := bufio.NewScanner(os.Stdin)
+	var name string
+	var password string
+
 	for name == "" {
 		fmt.Println("Introduce tu nombre de usuario ")
-		scanner.Scan()
-		name = scanner.Text()
+		fmt.Scan(&name)
 	}
 
-	password := ""
 	for password == "" {
 		fmt.Println("Introduce tu contraseña: ")
-		scanner.Scan()
-		password = scanner.Text()
+		fmt.Scan(&password)
 		password = string(hashPassword([]byte(password)))
 	}
 
@@ -305,7 +302,6 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 func controladorConsulta(consulta string) []string {
 
-	println(consulta)
 	consultas := strings.Split(consulta, "nuevaConsulta")
 
 	println("Estos son tus archivos:")
@@ -336,21 +332,29 @@ func llamadaConsultar(conn *tls.Conn) []string {
 	return controladorConsulta(netscan.Text())
 }
 
-func eliminarArchivo(conn *tls.Conn, ids []string) int {
+func eliminarArchivo(conn *tls.Conn, ids []string) {
 
-	var posicion int
-	println("Introduce el la posicion del archivo a eliminar: ")
-	fmt.Scan(&posicion)
+	if len(ids) > 0 {
+		var posicion int
+		println("Introduce la posicion del archivo a eliminar: ")
+		fmt.Scan(&posicion)
 
-	idArchivo := ids[posicion-1]
+		for posicion > len(ids) {
+			println("El numero que has introducido es incorrecto. Introduce la posicion del archivo a eliminar: ")
+			fmt.Scan(&posicion)
+		}
 
-	netscan := bufio.NewScanner(conn)
+		idArchivo := ids[posicion-1]
 
-	fmt.Fprintln(conn, "6#"+token+"|"+idArchivo)
-	netscan.Scan()
-	fmt.Println("servidor: " + netscan.Text())
+		netscan := bufio.NewScanner(conn)
 
-	return 1
+		fmt.Fprintln(conn, "6#"+token+"|"+idArchivo)
+		netscan.Scan()
+		fmt.Println("servidor: " + netscan.Text())
+	} else {
+		println("No tienes archivos para eliminar. Introduce alguno para ello.")
+	}
+
 }
 
 func client(ip string, port string) {
