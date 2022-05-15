@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -272,11 +273,11 @@ func sacarNombreArchv(s string) string {
 }
 
 func añadirArchivo(conn *tls.Conn) []byte {
-	scanner := bufio.NewScanner(os.Stdin)
+
+	var ruta string
 
 	fmt.Println("Escribe la ruta del archivo que quieres subir: ")
-	scanner.Scan()
-	ruta := scanner.Text()
+	fmt.Scan(&ruta)
 
 	file, err := os.Open(ruta)
 	checkError(err)
@@ -357,6 +358,54 @@ func eliminarArchivo(conn *tls.Conn, ids []string) {
 
 }
 
+func almacenarArchivo(sentencia string, ruta string) {
+	mensajes := strings.Split(sentencia, "| ")
+
+	nombreArchivo, err := AesDecrypt([]byte(mensajes[0]), key)
+	checkError(err)
+	content, err := AesDecrypt([]byte(mensajes[1]), key)
+	checkError(err)
+
+	file, err := os.Create(ruta + string(nombreArchivo))
+	defer file.Close()
+	if err != nil {
+		println("Error al crear el archivo en la ruta. Por favor introduce una ruta válida.")
+	} else {
+		reader := bytes.NewReader(content)
+		io.Copy(file, reader)
+	}
+}
+
+func descargarArchivo(conn *tls.Conn, ids []string) {
+	if len(ids) > 0 {
+		var posicion int
+		var ruta string
+
+		println("Introduce la posicion del archivo a descargar: ")
+		fmt.Scan(&posicion)
+
+		for posicion > len(ids) {
+			println("El numero que has introducido es incorrecto. Introduce la posicion del archivo a eliminar: ")
+			fmt.Scan(&posicion)
+		}
+
+		println("Introduce la ruta de la carpeta donde quieres que se guarde el archivo (acabada en \\): ")
+		fmt.Scan(&ruta)
+
+		idArchivo := ids[posicion-1]
+
+		netscan := bufio.NewScanner(conn)
+
+		fmt.Fprintln(conn, "5#"+token+"|"+idArchivo)
+		netscan.Scan()
+
+		almacenarArchivo(netscan.Text(), ruta)
+
+	} else {
+		println("No tienes archivos para descargar. Introduce alguno para ello.")
+	}
+}
+
 func client(ip string, port string) {
 	// desactivamos la comprobación del certificado (útil en desarrollo con certificado autofirmado)
 	cfg := &tls.Config{InsecureSkipVerify: true}
@@ -421,7 +470,8 @@ func client(ip string, port string) {
 				netscan.Scan()
 				fmt.Println("servidor: " + netscan.Text())
 			} else if salida == "3" {
-
+				ids := llamadaConsultar(conn)
+				descargarArchivo(conn, ids)
 			} else if salida == "4" {
 				ids := llamadaConsultar(conn)
 				eliminarArchivo(conn, ids)

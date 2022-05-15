@@ -23,7 +23,7 @@ func checkError(e error) {
 	}
 }
 
-func consultarArchivos(sesion string) string {
+func consultarArchivosServer(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
 	checkError(err)
 	defer db.Close()
@@ -164,7 +164,7 @@ func getVersion(idUsuario string, nombreArchivo string) int {
 	return version
 }
 
-func añadirArchivo(msg string) int {
+func añadirArchivoServer(msg string) int {
 
 	partesMensaje := strings.Split(msg, "| ")
 
@@ -198,7 +198,7 @@ func añadirArchivo(msg string) int {
 	return 1
 }
 
-func eliminarArchivo(mensaje string) string {
+func eliminarArchivoServer(mensaje string) string {
 
 	ids := strings.Split(mensaje, "|")
 	userID := ids[0]
@@ -227,7 +227,7 @@ func eliminarArchivo(mensaje string) string {
 
 }
 
-func splitFunc(s string) (string, string) {
+func splitFuncServer(s string) (string, string) {
 
 	action := ""
 	user := ""
@@ -243,6 +243,39 @@ func splitFunc(s string) (string, string) {
 	}
 
 	return action, user
+}
+
+func descargarArchivoServer(mensaje string) string {
+
+	partesMensaje := strings.Split(mensaje, "|")
+
+	sesion := partesMensaje[0]
+	id := partesMensaje[1]
+
+	db, err := sql.Open("sqlite3", "user.db")
+	checkError(err)
+	defer db.Close()
+	sentencia := `Select name, content  from file where userId = ? and id = ?`
+
+	statement, err := db.Prepare(sentencia)
+	datos := ""
+	lineas, err := statement.Query(sesion, id)
+	checkError(err)
+
+	defer lineas.Close()
+	for lineas.Next() {
+
+		var name string
+		var content string
+
+		lineas.Scan(&name, &content)
+
+		datos += name + "| " + content
+
+		break
+	}
+
+	return datos
 }
 
 func servidor(ip string, port string) {
@@ -280,7 +313,7 @@ func servidor(ip string, port string) {
 				msg = scanner.Text()
 
 				if action == "" {
-					mensaje, action = splitFunc(msg)
+					mensaje, action = splitFuncServer(msg)
 				}
 
 				if action == "1" { //Inicio Sesion
@@ -295,16 +328,20 @@ func servidor(ip string, port string) {
 						data = data + msg
 					} else {
 						data = data + msg
-						fmt.Fprintln(conn, añadirArchivo(data))
+						fmt.Fprintln(conn, añadirArchivoServer(data))
 						action = ""
 						data = ""
 					}
 				} else if action == "4" { //Consultar archivos
 					action = ""
-					fmt.Fprintln(conn, consultarArchivos(mensaje))
+					fmt.Fprintln(conn, consultarArchivosServer(mensaje))
+				} else if action == "5" {
+					action = ""
+					fmt.Fprintln(conn, descargarArchivoServer(mensaje))
+
 				} else if action == "6" {
 					action = ""
-					fmt.Fprintln(conn, eliminarArchivo(mensaje))
+					fmt.Fprintln(conn, eliminarArchivoServer(mensaje))
 
 				}
 
