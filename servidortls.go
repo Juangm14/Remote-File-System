@@ -17,6 +17,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Meter tambien en la base de datos el nombre hasheado
 func checkError(e error) {
 	if e != nil {
 		println(e.Error())
