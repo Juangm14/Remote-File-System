@@ -34,7 +34,7 @@ func main() {
 		name blob not null,
 		peso integer not null,
 		version integer not null,
-		content text,
+		content blob,
 		FOREIGN KEY (userId) REFERENCES user(userId) ON DELETE CASCADE ON UPDATE CASCADE,
 		UNIQUE(userId, name, version)
 	)`

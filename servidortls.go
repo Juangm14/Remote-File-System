@@ -67,6 +67,7 @@ func validarUsuario(sesion string) string {
 	var password string
 	var id string
 	validacion.Scan(&name, &password, &id)
+	println(user[0])
 
 	sentenciaSalt := `Select salt from salt where userId = ? `
 	statementSalt, err := db.Prepare(sentenciaSalt)

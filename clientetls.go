@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha512"
 	"crypto/tls"
 	"encoding/base64"
@@ -18,6 +19,8 @@ import (
 
 var token = ""
 var key []byte
+
+//Json para hacer el encode del struct
 
 /*
 Observaciones prof.: Algunos comentarios (copio y pego): "Los archivos privados de cada usuario se cifrarán con RSA (clave pública) 3072 bits."
@@ -89,17 +92,15 @@ func PKCS7Padding(ciphertext []byte, blockSize int) []byte {
 	return append(ciphertext, padtext...)
 }
 
-func AesEncrypt(origData, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	blockSize := block.BlockSize()
-	origData = PKCS7Padding(origData, blockSize)
-	blockMode := cipher.NewCBCEncrypter(block, key[:blockSize])
-	crypted := make([]byte, len(origData))
-	blockMode.CryptBlocks(crypted, origData)
-	return crypted, nil
+func AesEncrypt(data, key []byte) (out []byte) {
+	out = make([]byte, len(data)+16)    // reservamos espacio para el IV al principio
+	rand.Read(out[:16])                 // generamos el IV
+	blk, err := aes.NewCipher(key)      // cifrador en bloque (AES), usa key
+	checkError(err)                     // comprobamos el error
+	ctr := cipher.NewCTR(blk, out[:16]) // cifrador en flujo: modo CTR, usa IV
+	ctr.XORKeyStream(out[16:], data)    // ciframos los datos
+	return
+
 }
 
 //DESCIFRAR
@@ -109,17 +110,13 @@ func PKCS7UnPadding(origData []byte) []byte {
 	return origData[:(length - unpadding)]
 }
 
-func AesDecrypt(crypted, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	blockSize := block.BlockSize()
-	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
-	origData := make([]byte, len(crypted))
-	blockMode.CryptBlocks(origData, crypted)
-	origData = PKCS7UnPadding(origData)
-	return origData, nil
+func AesDecrypt(data, key []byte) (out []byte) {
+	out = make([]byte, len(data)-16)     // la salida no va a tener el IV
+	blk, err := aes.NewCipher(key)       // cifrador en bloque (AES), usa key
+	checkError(err)                      // comprobamos el error
+	ctr := cipher.NewCTR(blk, data[:16]) // cifrador en flujo: modo CTR, usa IV
+	ctr.XORKeyStream(out, data[16:])     // desciframos (doble cifrado) los datos
+	return
 }
 
 func DecryptMessage(key []byte, message string) (string, error) {
@@ -188,7 +185,7 @@ func iniciarSesion() string {
 	}
 
 	key = []byte(password[0:16])
-	nameEnc, _ := AesEncrypt([]byte(name), key)
+	nameEnc := AesEncrypt([]byte(name), key)
 
 	mensaje := "1#" + string(nameEnc) + "|" + password
 	return mensaje
@@ -255,8 +252,7 @@ func registro() string {
 	password = string(hashPassword)
 
 	key = []byte(hashPassword[0:16])
-	nameEnc, err := AesEncrypt([]byte(name), key)
-	print(err)
+	nameEnc := AesEncrypt([]byte(name), key)
 
 	return "2#" + string(nameEnc) + "|" + password
 }
@@ -286,7 +282,7 @@ func añadirArchivo(conn *tls.Conn) []byte {
 	fileInformation, err := file.Stat()
 	checkError(err)
 
-	nombreCifrado, err := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
+	nombreCifrado := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
 
 	mensaje := "3#" + string(nombreCifrado) + "| " + strconv.FormatInt(fileInformation.Size(), 10) + "| " + token + "| "
 
@@ -294,7 +290,7 @@ func añadirArchivo(conn *tls.Conn) []byte {
 
 	_, err = file.Read(buff)
 
-	nameEnc, err := AesEncrypt(buff, key)
+	nameEnc := AesEncrypt(buff, key)
 
 	mensaje += string(nameEnc) + "| FIN"
 
@@ -316,8 +312,7 @@ func controladorConsulta(consulta string) []string {
 		if len(r) > 0 {
 			datosArchivo := strings.Split(r, "|")
 			ids = append(ids, datosArchivo[0])
-			name, err := AesDecrypt([]byte(datosArchivo[1]), key)
-			checkError(err)
+			name := AesDecrypt([]byte(datosArchivo[1]), key)
 			println("  " + strconv.Itoa(index) + ".  " + string(name) + "\t\t\t" + datosArchivo[2] + "\t\t\t" + datosArchivo[3])
 			println("-------------------------------------------------------------------------------------")
 		}
@@ -361,10 +356,8 @@ func eliminarArchivo(conn *tls.Conn, ids []string) {
 func almacenarArchivo(sentencia string, ruta string) {
 	mensajes := strings.Split(sentencia, "| ")
 
-	nombreArchivo, err := AesDecrypt([]byte(mensajes[0]), key)
-	checkError(err)
-	content, err := AesDecrypt([]byte(mensajes[1]), key)
-	checkError(err)
+	nombreArchivo := AesDecrypt([]byte(mensajes[0]), key)
+	content := AesDecrypt([]byte(mensajes[1]), key)
 
 	file, err := os.Create(ruta + string(nombreArchivo))
 	defer file.Close()
