@@ -9,6 +9,7 @@ import (
 	"crypto/sha512"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -28,14 +29,22 @@ No se cifra con clave pública información en general. En todo caso, se cifra c
  se cifra con clave pública. "No tenemos muy claro donde almacenar las claves privadas (AES) de los usuarios."
  Como comentamos por tutoría, las claves de los usuarios se derivan de su contraseña, pero no se almacenan, se mantienen en RAM mientras dure la sesión
 */
-type User struct {
-	action int
-	data   []byte
+type DataClient struct {
+	Action int        `json:"action"`
+	Info   UserClient `json:"info"`
+}
+type UserClient struct {
+	Name     []byte     `json:"name"`
+	Password []byte     `json:"password"`
+	Archivo  FileClient `json:"archivo"`
 }
 
-type File struct {
-	action int
-	data   []byte
+type FileClient struct {
+	NameFile []byte `json:"nameFile"`
+	NameH    []byte `json:"nameH"`
+	Peso     int    `json:"peso"`
+	Data     []byte `json:"data"`
+	Token    []byte `json:"token"`
 }
 
 func msgNumber(valor int64, user string) string {
@@ -69,7 +78,7 @@ func splitFunc(s string) (string, string) {
 	return action, user
 }
 
-func checkError(e error) {
+func checkErrorCliente(e error) {
 	if e != nil {
 		println(e.Error())
 	}
@@ -105,7 +114,7 @@ func AesEncrypt(data, key []byte) (out []byte) {
 	out = make([]byte, len(data)+16)    // reservamos espacio para el IV al principio
 	rand.Read(out[:16])                 // generamos el IV
 	blk, err := aes.NewCipher(key)      // cifrador en bloque (AES), usa key
-	checkError(err)                     // comprobamos el error
+	checkErrorCliente(err)              // comprobamos el error
 	ctr := cipher.NewCTR(blk, out[:16]) // cifrador en flujo: modo CTR, usa IV
 	ctr.XORKeyStream(out[16:], data)    // ciframos los datos
 	return
@@ -122,7 +131,7 @@ func PKCS7UnPadding(origData []byte) []byte {
 func AesDecrypt(data, key []byte) (out []byte) {
 	out = make([]byte, len(data)-16)     // la salida no va a tener el IV
 	blk, err := aes.NewCipher(key)       // cifrador en bloque (AES), usa key
-	checkError(err)                      // comprobamos el error
+	checkErrorCliente(err)               // comprobamos el error
 	ctr := cipher.NewCTR(blk, data[:16]) // cifrador en flujo: modo CTR, usa IV
 	ctr.XORKeyStream(out, data[16:])     // desciframos (doble cifrado) los datos
 	return
@@ -178,7 +187,7 @@ func hashear(password []byte) []byte {
 	return hash[:]
 }
 
-func iniciarSesion() string {
+func iniciarSesion() []byte {
 	var name string
 	var password string
 
@@ -195,9 +204,18 @@ func iniciarSesion() string {
 
 	key = []byte(password[0:16])
 	nameEnc := hashear([]byte(name))
+	info := DataClient{
+		action: 1,
+		info: UserClient{
+			name:     nameEnc,
+			password: []byte(password),
+			archivo:  FileClient{},
+		},
+	}
 
-	mensaje := "1#" + string(nameEnc) + "|" + password
-	return mensaje
+	infoBytes, errJ := json.Marshal(info)
+	checkErrorCliente(errJ)
+	return infoBytes
 }
 
 func validarNombre(s string) int {
@@ -285,11 +303,11 @@ func añadirArchivo(conn *tls.Conn) []byte {
 	fmt.Scan(&ruta)
 
 	file, err := os.Open(ruta)
-	checkError(err)
+	checkErrorCliente(err)
 	defer file.Close()
 
 	fileInformation, err := file.Stat()
-	checkError(err)
+	checkErrorCliente(err)
 
 	nombreCifrado := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
 
@@ -413,7 +431,7 @@ func client(ip string, port string) {
 	cfg := &tls.Config{InsecureSkipVerify: true}
 
 	conn, err := tls.Dial("tcp", ip+":"+port, cfg) // llamamos al servidor con esa configuración
-	checkError(err)
+	checkErrorCliente(err)
 
 	defer conn.Close() // es importante cerrar la conexión al finalizar
 
@@ -429,7 +447,9 @@ func client(ip string, port string) {
 
 		if salida == "1" && token == "" {
 			user := iniciarSesion() // scanner para la entrada estándar (teclado)
-			netscan := bufio.NewScanner(conn)
+			fmt.Println(string(user))
+			/*netscan := bufio.NewScanner(conn)
+
 			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
 			netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
 
@@ -450,6 +470,7 @@ func client(ip string, port string) {
 			}
 
 			fmt.Println("servidor: " + msgNumber(numero, user))
+			*/
 
 		} else if salida == "2" && token == "" {
 			user := registro()
