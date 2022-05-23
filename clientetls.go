@@ -28,6 +28,15 @@ No se cifra con clave pública información en general. En todo caso, se cifra c
  se cifra con clave pública. "No tenemos muy claro donde almacenar las claves privadas (AES) de los usuarios."
  Como comentamos por tutoría, las claves de los usuarios se derivan de su contraseña, pero no se almacenan, se mantienen en RAM mientras dure la sesión
 */
+type User struct {
+	action int
+	data   []byte
+}
+
+type File struct {
+	action int
+	data   []byte
+}
 
 func msgNumber(valor int64, user string) string {
 	switch valor {
@@ -164,7 +173,7 @@ func validarConstraseña(s string) bool {
 	return (upper && lower && number)
 }
 
-func hashPassword(password []byte) []byte {
+func hashear(password []byte) []byte {
 	hash := sha512.Sum512(password)
 	return hash[:]
 }
@@ -181,11 +190,11 @@ func iniciarSesion() string {
 	for password == "" {
 		fmt.Println("Introduce tu contraseña: ")
 		fmt.Scan(&password)
-		password = string(hashPassword([]byte(password)))
+		password = string(hashear([]byte(password)))
 	}
 
 	key = []byte(password[0:16])
-	nameEnc := AesEncrypt([]byte(name), key)
+	nameEnc := hashear([]byte(name))
 
 	mensaje := "1#" + string(nameEnc) + "|" + password
 	return mensaje
@@ -248,11 +257,11 @@ func registro() string {
 	}
 
 	//Ahora hasheamos la contraseña para la seguridad en la comunicacion entre cliente y servidor ( a parte de tener tls )
-	hashPassword := hashPassword([]byte(password))
-	password = string(hashPassword)
+	hashedPassword := hashear([]byte(password))
+	password = string(hashedPassword)
 
-	key = []byte(hashPassword[0:16])
-	nameEnc := AesEncrypt([]byte(name), key)
+	key = []byte(hashedPassword[0:16])
+	nameEnc := hashear([]byte(name))
 
 	return "2#" + string(nameEnc) + "|" + password
 }
