@@ -32,6 +32,7 @@ func main() {
 		id integer primary key autoincrement,
 		userId text not null,
 		name blob not null,
+		nameHashed blob not null,
 		peso integer not null,
 		version integer not null,
 		content blob,
