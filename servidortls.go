@@ -17,8 +17,26 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type DataServer struct {
+	Action int        `json:"action"`
+	Info   UserServer `json:"info"`
+}
+type UserServer struct {
+	Name     []byte     `json:"name"`
+	Password []byte     `json:"password"`
+	Archivo  FileServer `json:"archivo"`
+}
+
+type FileServer struct {
+	NameFile []byte `json:"nameFile"`
+	NameH    []byte `json:"nameH"`
+	Peso     int    `json:"peso"`
+	Data     []byte `json:"data"`
+	Token    []byte `json:"token"`
+}
+
 // Meter tambien en la base de datos el nombre hasheado
-func checkError(e error) {
+func checkErrorServer(e error) {
 	if e != nil {
 		println(e.Error())
 	}
@@ -26,14 +44,14 @@ func checkError(e error) {
 
 func consultarArchivosServer(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
-	checkError(err)
+	checkErrorServer(err)
 	defer db.Close()
 	sentencia := `Select id, name, peso, version from file where userId = ?`
 
 	statement, err := db.Prepare(sentencia)
 	datos := ""
 	lineas, err := statement.Query(sesion)
-	checkError(err)
+	checkErrorServer(err)
 
 	for lineas.Next() {
 
@@ -149,7 +167,7 @@ func getVersion(idUsuario string, nombreArchivo string) int {
 
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
-	checkError(err)
+	checkErrorServer(err)
 
 	statement, err := db.Prepare(sentenciaSelect)
 
@@ -255,14 +273,14 @@ func descargarArchivoServer(mensaje string) string {
 	id := partesMensaje[1]
 
 	db, err := sql.Open("sqlite3", "user.db")
-	checkError(err)
+	checkErrorServer(err)
 	defer db.Close()
 	sentencia := `Select name, content  from file where userId = ? and id = ?`
 
 	statement, err := db.Prepare(sentencia)
 	datos := ""
 	lineas, err := statement.Query(sesion, id)
-	checkError(err)
+	checkErrorServer(err)
 
 	defer lineas.Close()
 	for lineas.Next() {
@@ -283,25 +301,25 @@ func descargarArchivoServer(mensaje string) string {
 func servidor(ip string, port string) {
 	// cargamos el par certificado / clave privada
 	cert, err := tls.LoadX509KeyPair("./tls/localhost.crt", "./tls/localhost.key")
-	checkError(err)
+	checkErrorServer(err)
 
 	// asignamos dicho par a la configuración de TLS
 	cfg := &tls.Config{Certificates: []tls.Certificate{cert}}
 
 	// creamos un listener para escuchar el puerto 1337
 	ln, err := tls.Listen("tcp", ip+":"+port, cfg)
-	checkError(err)
+	checkErrorServer(err)
 
 	defer ln.Close() // nos aseguramos que cerramos las conexiones aunque el programa falle
 
 	for { // búcle infinito, se sale con ctrl+c o matando el proceso
 		conn, err := ln.Accept() // para cada nueva petición de conexión
-		checkError(err)
+		checkErrorServer(err)
 
 		go func() { // lanzamos un cierre (lambda, función anónima) en concurrencia
 
 			_, port, err := net.SplitHostPort(conn.RemoteAddr().String()) // obtenemos el puerto remoto para identificar al cliente (decorativo)
-			checkError(err)
+			checkErrorServer(err)
 
 			fmt.Println("conexión: ", conn.LocalAddr(), " <--> ", conn.RemoteAddr())
 
