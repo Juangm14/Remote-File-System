@@ -16,6 +16,8 @@ type FileS struct {
 	Peso     int    `json:"peso"`
 	Data     []byte `json:"data"`
 	Token    []byte `json:"token"`
+	Id       int
+	Version  int
 }
 
 type RespuestaS struct {
@@ -24,4 +26,5 @@ type RespuestaS struct {
 	Msg    string
 	File   FileS
 	Data   []byte
+	Files  []FileS
 }

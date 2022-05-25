@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 	. "lajr1dominio.com/proy/structs"
@@ -28,30 +27,36 @@ func ErrorRespuesta() RespuestaS {
 
 	return RespuestaS{ActAny: -1, ErrNum: 2, Msg: "Ha habido un error "}
 }
-func consultarArchivosServer(sesion string) string {
+func consultarArchivosServer(sesion DataS) RespuestaS {
 	db, err := sql.Open("sqlite3", "user.db")
 	checkErrorServer(err)
 	defer db.Close()
-	sentencia := `Select id, name, peso, version from file where userId = ?`
+	sentencia := `Select id, name, peso, version,content from file where userId = ?`
 
 	statement, err := db.Prepare(sentencia)
-	datos := ""
-	lineas, err := statement.Query(sesion)
+	lineas, err := statement.Query(string(sesion.User.Archivo.Token))
 	checkErrorServer(err)
-
+	resp := RespuestaS{}
 	for lineas.Next() {
 
-		var name string
-		var id string
-		var peso string
-		var version string
-		lineas.Scan(&id, &name, &peso, &version)
-
-		datos += "nuevaConsulta" + id + "|" + name + "|" + peso + "|" + version
-
+		var name []byte
+		var id int
+		var peso int
+		var version int
+		var content []byte
+		lineas.Scan(&id, &name, &peso, &version, &content)
+		file := FileS{
+			NameFile: name,
+			Id:       id,
+			Peso:     peso,
+			Version:  version,
+			Data:     content,
+			Token:    sesion.User.Archivo.Token,
+		}
+		resp.Files = append(resp.Files, file)
 	}
 
-	return datos
+	return resp
 }
 
 func validarUsuario(sesion DataS) RespuestaS {
@@ -209,32 +214,27 @@ func añadirArchivoServer(sesion DataS) RespuestaS {
 	return info
 }
 
-func eliminarArchivoServer(mensaje string) string {
+func eliminarArchivoServer(archivo FileS) RespuestaS {
 
-	ids := strings.Split(mensaje, "|")
-	userID := ids[0]
-	fileID := ids[1]
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
 
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	checkErrorServer(err)
 	sentencia := `delete from file where userId = ? and id = ?`
 
 	statement, err := db.Prepare(sentencia)
-
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-
-	_, err = statement.Exec(userID, fileID)
+	checkErrorServer(err)
+	num, _ := strconv.Atoi(string(archivo.Token))
+	_, err = statement.Exec(num, archivo.Id)
 
 	if err == nil {
-		return "Eliminado"
+		resp := RespuestaS{
+			Msg: "Se ha eliminado el archivo correctamente",
+		}
+		return resp
 	}
-
-	return "Error"
+	checkErrorServer(err)
+	return ErrorRespuesta()
 
 }
 
@@ -254,39 +254,6 @@ func splitFuncServer(s string) (string, string) {
 	}
 
 	return action, user
-}
-
-func descargarArchivoServer(mensaje string) string {
-
-	partesMensaje := strings.Split(mensaje, "|")
-
-	sesion := partesMensaje[0]
-	id := partesMensaje[1]
-
-	db, err := sql.Open("sqlite3", "user.db")
-	checkErrorServer(err)
-	defer db.Close()
-	sentencia := `Select name, content  from file where userId = ? and id = ?`
-
-	statement, err := db.Prepare(sentencia)
-	datos := ""
-	lineas, err := statement.Query(sesion, id)
-	checkErrorServer(err)
-
-	defer lineas.Close()
-	for lineas.Next() {
-
-		var name string
-		var content string
-
-		lineas.Scan(&name, &content)
-
-		datos += name + "| " + content
-
-		break
-	}
-
-	return datos
 }
 
 func servidor(ip string, port string) {
@@ -332,6 +299,21 @@ func servidor(ip string, port string) {
 					resp := añadirArchivoServer(msg)
 					enc := json.NewEncoder(conn)
 					enc.Encode(resp)
+				case 4, 5:
+					resp := consultarArchivosServer(msg)
+					enc := json.NewEncoder(conn)
+					enc.Encode(resp)
+				case 6:
+					resp := consultarArchivosServer(msg)
+					enc := json.NewEncoder(conn)
+					enc.Encode(resp) //Devuelve la consulta
+					dec2 := json.NewDecoder(conn)
+					var data DataS
+					dec2.Decode(&data)
+					resp2 := eliminarArchivoServer(data.User.Archivo)
+
+					enc2 := json.NewEncoder(conn)
+					enc2.Encode(resp2)
 				default:
 					exit = true
 				}

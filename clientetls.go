@@ -14,7 +14,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 	"unicode"
 
 	. "lajr1dominio.com/proy/structs"
@@ -114,6 +113,7 @@ func PKCS7UnPadding(origData []byte) []byte {
 }
 
 func AesDecrypt(data, key []byte) (out []byte) {
+
 	out = make([]byte, len(data)-16)     // la salida no va a tener el IV
 	blk, err := aes.NewCipher(key)       // cifrador en bloque (AES), usa key
 	checkErrorCliente(err)               // comprobamos el error
@@ -326,9 +326,7 @@ func añadirArchivo(conn *tls.Conn) DataS {
 	return info
 }
 
-func controladorConsulta(consulta string) []string {
-
-	consultas := strings.Split(consulta, "nuevaConsulta")
+func controladorConsulta(consulta RespuestaS) {
 
 	println("Estos son tus archivos:")
 	println("-------------------------------------------------------------------------------------")
@@ -337,57 +335,60 @@ func controladorConsulta(consulta string) []string {
 
 	var ids []string
 
-	for index, r := range consultas {
-		if len(r) > 0 {
-			datosArchivo := strings.Split(r, "|")
-			ids = append(ids, datosArchivo[0])
-			name := AesDecrypt([]byte(datosArchivo[1]), key)
-			println("  " + strconv.Itoa(index) + ".  " + string(name) + "\t\t\t" + datosArchivo[2] + "\t\t\t" + datosArchivo[3])
-			println("-------------------------------------------------------------------------------------")
-		}
+	for index, r := range consulta.Files {
+
+		ids = append(ids, strconv.Itoa(r.Id))
+		name := AesDecrypt([]byte(r.NameFile), key)
+		println("  " + strconv.Itoa(index) + ".  " + string(name) + "\t\t\t" + strconv.Itoa(r.Peso) + "\t\t\t" + strconv.Itoa(r.Version))
+		println("-------------------------------------------------------------------------------------")
+
 	}
 
-	return ids
 }
 
-func llamadaConsultar(conn *tls.Conn) []string {
-	netscan := bufio.NewScanner(conn)
-	fmt.Fprintln(conn, "4#"+token)
-	netscan.Scan()
-	return controladorConsulta(netscan.Text())
+func llamadaConsultar(conn *tls.Conn, action int) []FileS {
+	enc := json.NewEncoder(conn)
+	data := DataS{Action: action, User: UserS{
+		Archivo: FileS{
+			Token: []byte(token),
+		},
+	}}
+	enc.Encode(data)
+	dec := json.NewDecoder(conn)
+	var resp RespuestaS
+	dec.Decode(&resp)
+	controladorConsulta(resp)
+	return resp.Files
 }
 
-func eliminarArchivo(conn *tls.Conn, ids []string) {
+func eliminarArchivo(files []FileS) DataS {
 
-	if len(ids) > 0 {
-		var posicion int
-		println("Introduce la posicion del archivo a eliminar: ")
-		fmt.Scan(&posicion)
+	var posicion int
 
-		for posicion > len(ids) {
-			println("El numero que has introducido es incorrecto. Introduce la posicion del archivo a eliminar: ")
-			fmt.Scan(&posicion)
+	println("Introduce la posicion del archivo a eliminar: ")
+	fmt.Scan(&posicion)
+	file := FileS{}
+	for index, r := range files {
+		if index == posicion {
+			file = r
 		}
-
-		idArchivo := ids[posicion-1]
-
-		netscan := bufio.NewScanner(conn)
-
-		fmt.Fprintln(conn, "6#"+token+"|"+idArchivo)
-		netscan.Scan()
-		fmt.Println("servidor: " + netscan.Text())
-	} else {
+	}
+	if file.Peso == 0 {
 		println("No tienes archivos para eliminar. Introduce alguno para ello.")
+		file.Peso = -1
+		return DataS{User: UserS{Archivo: file}}
+	} else {
+
+		return DataS{Action: 6, User: UserS{Archivo: file}}
 	}
 
 }
 
-func almacenarArchivo(sentencia string, ruta string) {
-	mensajes := strings.Split(sentencia, "| ")
+func almacenarArchivo(archivo FileS, ruta string) {
 
-	nombreArchivo := AesDecrypt([]byte(mensajes[0]), key)
-	content := AesDecrypt([]byte(mensajes[1]), key)
+	nombreArchivo := AesDecrypt([]byte(archivo.NameFile), key)
 
+	content := AesDecrypt([]byte(archivo.Data), key)
 	file, err := os.Create(ruta + string(nombreArchivo))
 	defer file.Close()
 	if err != nil {
@@ -398,34 +399,28 @@ func almacenarArchivo(sentencia string, ruta string) {
 	}
 }
 
-func descargarArchivo(conn *tls.Conn, ids []string) {
-	if len(ids) > 0 {
-		var posicion int
-		var ruta string
+func descargarArchivo(conn *tls.Conn, files []FileS) {
 
-		println("Introduce la posicion del archivo a descargar: ")
-		fmt.Scan(&posicion)
+	var posicion int
+	var ruta string
 
-		for posicion > len(ids) {
-			println("El numero que has introducido es incorrecto. Introduce la posicion del archivo a eliminar: ")
-			fmt.Scan(&posicion)
+	println("Introduce la posicion del archivo a descargar: ")
+	fmt.Scan(&posicion)
+	file := FileS{}
+	for index, r := range files {
+		if index == posicion {
+			file = r
 		}
-
+	}
+	if file.Peso == 0 {
+		println("No tienes archivos para descargar. Introduce alguno para ello.")
+	} else {
 		println("Introduce la ruta de la carpeta donde quieres que se guarde el archivo (acabada en \\): ")
 		fmt.Scan(&ruta)
 
-		idArchivo := ids[posicion-1]
-
-		netscan := bufio.NewScanner(conn)
-
-		fmt.Fprintln(conn, "5#"+token+"|"+idArchivo)
-		netscan.Scan()
-
-		almacenarArchivo(netscan.Text(), ruta)
-
-	} else {
-		println("No tienes archivos para descargar. Introduce alguno para ello.")
+		almacenarArchivo(file, ruta)
 	}
+
 }
 
 func client(ip string, port string) {
@@ -471,7 +466,7 @@ func client(ip string, port string) {
 			}
 		} else if token != "" {
 			if salida == "1" {
-				ids := llamadaConsultar(conn)
+				ids := llamadaConsultar(conn, 4)
 				ids = ids
 			} else if salida == "2" {
 
@@ -484,11 +479,20 @@ func client(ip string, port string) {
 				dec.Decode(&resp)
 				fmt.Println(resp.Msg)
 			} else if salida == "3" {
-				ids := llamadaConsultar(conn)
+				ids := llamadaConsultar(conn, 5)
 				descargarArchivo(conn, ids)
 			} else if salida == "4" {
-				ids := llamadaConsultar(conn)
-				eliminarArchivo(conn, ids)
+				ids := llamadaConsultar(conn, 6)
+				file := eliminarArchivo(ids) //se le pasa el DataS con el file
+				if file.User.Archivo.Peso != -1 {
+					fmt.Println("no entra")
+					enc := json.NewEncoder(conn)
+					enc.Encode(file)
+					dec := json.NewDecoder(conn)
+					var resp RespuestaS
+					dec.Decode(&resp)
+				}
+
 			} else if salida == "5" {
 				fmt.Println("Has cerrado sesion correctamente. Esperamos que vuelvas pronto. :( ")
 				token = ""
