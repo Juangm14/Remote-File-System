@@ -31,7 +31,7 @@ No se cifra con clave pública información en general. En todo caso, se cifra c
 */
 type DataClient struct {
 	Action int        `json:"action"`
-	Info   UserClient `json:"info"`
+	User   UserClient `json:"user"`
 }
 type UserClient struct {
 	Name     []byte     `json:"name"`
@@ -45,6 +45,14 @@ type FileClient struct {
 	Peso     int    `json:"peso"`
 	Data     []byte `json:"data"`
 	Token    []byte `json:"token"`
+}
+
+type RespuestaClient struct {
+	actionOrAny int
+	errorNum    int
+	Msg         string
+	file        FileClient
+	data        []byte
 }
 
 func msgNumber(valor int64, user string) string {
@@ -187,7 +195,7 @@ func hashear(password []byte) []byte {
 	return hash[:]
 }
 
-func iniciarSesion() []byte {
+func iniciarSesion() DataClient {
 	var name string
 	var password string
 
@@ -205,17 +213,14 @@ func iniciarSesion() []byte {
 	key = []byte(password[0:16])
 	nameEnc := hashear([]byte(name))
 	info := DataClient{
-		action: 1,
-		info: UserClient{
-			name:     nameEnc,
-			password: []byte(password),
-			archivo:  FileClient{},
+		Action: 1,
+		User: UserClient{
+			Name:     nameEnc,
+			Password: []byte(password),
 		},
 	}
 
-	infoBytes, errJ := json.Marshal(info)
-	checkErrorCliente(errJ)
-	return infoBytes
+	return info
 }
 
 func validarNombre(s string) int {
@@ -232,7 +237,7 @@ func validarNombre(s string) int {
 	}
 	return valido
 }
-func registro() string {
+func registro() DataClient {
 	name := ""
 	scanner := bufio.NewScanner(os.Stdin)
 	nameValid := -1
@@ -247,7 +252,10 @@ func registro() string {
 		}
 	}
 	if nameValid == -2 {
-		return "Has salido correctamente"
+		info := DataClient{
+			Action: -1,
+		}
+		return info
 	}
 	password := ""
 	password2 := ""
@@ -281,7 +289,15 @@ func registro() string {
 	key = []byte(hashedPassword[0:16])
 	nameEnc := hashear([]byte(name))
 
-	return "2#" + string(nameEnc) + "|" + password
+	info := DataClient{
+		Action: 2,
+		User: UserClient{
+			Name:     nameEnc,
+			Password: hashedPassword,
+		},
+	}
+
+	return info
 }
 
 func sacarNombreArchv(s string) string {
@@ -437,8 +453,6 @@ func client(ip string, port string) {
 
 	fmt.Println("conectado a ", conn.RemoteAddr())
 
-	//keyscan := bufio.NewScanner(os.Stdin) // scanner para la entrada estándar (teclado)
-	//netscan := bufio.NewScanner(conn)     // scanner para la conexión (datos desde el servidor)
 	salida := "-1"
 	fmt.Println("Bienvenido a tu Sistema de archivos seguro!")
 	for salida != "0" {
@@ -446,39 +460,27 @@ func client(ip string, port string) {
 		salida = menu()
 
 		if salida == "1" && token == "" {
-			user := iniciarSesion() // scanner para la entrada estándar (teclado)
-			fmt.Println(string(user))
-			/*netscan := bufio.NewScanner(conn)
+			user := iniciarSesion() //Iniciamos sesion
+			enc := json.NewEncoder(conn)
+			enc.Encode(user) //Tiramos mensaje encoded a la conexión
 
-			fmt.Fprintln(conn, user) // enviamos la entrada al servidor
-			netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
-
-			msg := netscan.Text()
-
-			msgPartes := strings.Split(msg, "-")
-			numero, _ := strconv.ParseInt(msgPartes[0], 0, 64)
-
-			id := msgPartes[1]
-
-			if err != nil {
-				println("Error al convertir el id del usuario a integer.")
+			dec := json.NewDecoder(conn)
+			var resp RespuestaClient
+			dec.Decode(&resp) // Recibimos la respuesta
+			fmt.Println(resp.Msg)
+			if resp.actionOrAny != -1 {
+				token = string(resp.actionOrAny)
 			}
-			_, user = splitFunc(user)
-
-			if numero == 3 {
-				token = id
-			}
-
-			fmt.Println("servidor: " + msgNumber(numero, user))
-			*/
-
 		} else if salida == "2" && token == "" {
 			user := registro()
-			if user != "Has salido correctamente" {
-				netscan := bufio.NewScanner(conn)
-				fmt.Fprintln(conn, user) // enviamos la entrada al servidor
-				netscan.Scan()           // escaneamos la conexión (se bloquea hasta recibir información)
-				fmt.Println("servidor: " + netscan.Text())
+			if user.Action != -1 {
+				enc := json.NewEncoder(conn)
+				enc.Encode(user)
+
+				dec := json.NewDecoder(conn)
+				var resp RespuestaClient
+				dec.Decode(&resp)
+				fmt.Println(resp.Msg)
 			} else {
 				fmt.Println(user)
 			}

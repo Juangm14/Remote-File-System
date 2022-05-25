@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"crypto/sha512"
 	"crypto/tls"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -19,7 +19,7 @@ import (
 
 type DataServer struct {
 	Action int        `json:"action"`
-	Info   UserServer `json:"info"`
+	User   UserServer `json:"user"`
 }
 type UserServer struct {
 	Name     []byte     `json:"name"`
@@ -33,6 +33,14 @@ type FileServer struct {
 	Peso     int    `json:"peso"`
 	Data     []byte `json:"data"`
 	Token    []byte `json:"token"`
+}
+
+type RespuestaServer struct {
+	actionOrAny int
+	errorNum    int
+	Msg         string
+	file        FileServer
+	data        []byte
 }
 
 // Meter tambien en la base de datos el nombre hasheado
@@ -67,11 +75,12 @@ func consultarArchivosServer(sesion string) string {
 
 	return datos
 }
-func validarUsuario(sesion string) string {
+
+func validarUsuario(sesion DataServer) RespuestaServer {
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
-	user := strings.Split(sesion, "|")
 
+	respError := RespuestaServer{actionOrAny: -1, errorNum: 2, Msg: "Ha habido un error registrandose"}
 	sentencia := `Select name, password, id from user where name = ?`
 
 	statement, err := db.Prepare(sentencia)
@@ -80,13 +89,12 @@ func validarUsuario(sesion string) string {
 		log.Fatalln(err.Error())
 	}
 
-	validacion := statement.QueryRow(user[0])
+	validacion := statement.QueryRow(sesion.User.Name)
 
 	var name string
 	var password string
-	var id string
+	var id int
 	validacion.Scan(&name, &password, &id)
-	println(user[0])
 
 	sentenciaSalt := `Select salt from salt where userId = ? `
 	statementSalt, err := db.Prepare(sentenciaSalt)
@@ -103,27 +111,29 @@ func validarUsuario(sesion string) string {
 
 	salt := []byte(saltS)
 
-	passwordSalted := pbkdf2.Key([]byte(user[1]), salt, 4096, 32, sha512.New512_256)
+	passwordSalted := pbkdf2.Key([]byte(sesion.User.Password), salt, 4096, 32, sha512.New512_256)
 
-	if name == user[0] && string(passwordSalted) == password {
-
-		return "3" + "-" + id
+	if name == string(sesion.User.Name) && string(passwordSalted) == password {
+		resp := RespuestaServer{
+			actionOrAny: id,
+			Msg:         "Has iniciado sesión correctamente",
+		}
+		return resp
 	}
 
-	return "2" + "-" + id
+	return respError
 }
 
-func registrarUsuario(sesion string) int {
+func registrarUsuario(sesion DataServer) RespuestaServer {
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
-
+	respError := RespuestaServer{actionOrAny: -1, errorNum: 2, Msg: "Ha habido un error registrandose"}
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 
-	user := strings.Split(sesion, "|")
 	salt := make([]byte, 32)
-	password := pbkdf2.Key([]byte(user[1]), salt, 4096, 32, sha512.New512_256)
+	password := pbkdf2.Key(sesion.User.Password, salt, 4096, 32, sha512.New512_256)
 	sentencia := `insert into user (name,password) values (?, ?)`
 
 	statement, err := db.Prepare(sentencia)
@@ -132,16 +142,16 @@ func registrarUsuario(sesion string) int {
 		log.Fatalln(err.Error())
 	}
 
-	v, err := statement.Exec(string(user[0]), password)
+	v, err := statement.Exec(sesion.User.Name, password)
 	if err != nil {
-		return 0
+		return respError
 	} else if v != nil {
 		sentenciaUser := `select id from user where name=?`
 		statement, err = db.Prepare(sentenciaUser)
 		if err != nil {
 			log.Fatalln(err.Error())
 		}
-		v2 := statement.QueryRow(user[0])
+		v2 := statement.QueryRow(sesion.User.Name)
 		sentenciaSal := `insert into salt (userId,salt) values (?, ?)`
 		statement, err = db.Prepare(sentenciaSal)
 		if err != nil {
@@ -154,12 +164,17 @@ func registrarUsuario(sesion string) int {
 			fmt.Println("Error con el select")
 		}
 		v, err = statement.Exec(userID, salt)
-		ruta := "./Servidor/" + user[0]
+		ruta := "./Servidor/" + string(sesion.User.Name)
 		os.Mkdir(ruta, os.ModePerm)
-		return 1
+		resp := RespuestaServer{
+			actionOrAny: 1,
+			errorNum:    0,
+			Msg:         "Se ha registrado el usuario correctamente",
+		}
+		return resp
 	}
 
-	return -1
+	return respError
 }
 
 func getVersion(idUsuario string, nombreArchivo string) int {
@@ -323,48 +338,61 @@ func servidor(ip string, port string) {
 
 			fmt.Println("conexión: ", conn.LocalAddr(), " <--> ", conn.RemoteAddr())
 
-			scanner := bufio.NewScanner(conn) // el scanner nos permite trabajar con la entrada línea a línea (por defecto)
-			msg := ""
-			action := ""
-			mensaje := ""
-			data := ""
-
-			for scanner.Scan() { // escaneamos la conexión
-				msg = scanner.Text()
-
-				if action == "" {
-					mensaje, action = splitFuncServer(msg)
+			//action := ""
+			//mensaje := ""
+			//data := ""
+			exit := false
+			for !exit { // escaneamos la conexión
+				dec := json.NewDecoder(conn)
+				var msg DataServer
+				dec.Decode(&msg)
+				switch msg.Action {
+				case 1:
+					resp := validarUsuario(msg)
+					enc := json.NewEncoder(conn)
+					enc.Encode(resp)
+				case 2:
+					resp := registrarUsuario(msg)
+					enc := json.NewEncoder(conn)
+					enc.Encode(resp)
+				default:
+					exit = true
 				}
 
-				if action == "1" { //Inicio Sesion
-
-					fmt.Fprintln(conn, validarUsuario(mensaje))
-					action = ""
-				} else if action == "2" { //Registrarse
-					fmt.Fprintln(conn, registrarUsuario(mensaje))
-					action = ""
-				} else if action == "3" { //Añadir Archivo
-					if !strings.Contains(msg, "FIN") {
-						data = data + msg
-					} else {
-						data = data + msg
-						fmt.Fprintln(conn, añadirArchivoServer(data))
-						action = ""
-						data = ""
+				/*
+					if action == "" {
+						mensaje, action = splitFuncServer(msg)
 					}
-				} else if action == "4" { //Consultar archivos
-					action = ""
-					fmt.Fprintln(conn, consultarArchivosServer(mensaje))
-				} else if action == "5" {
-					action = ""
-					fmt.Fprintln(conn, descargarArchivoServer(mensaje))
 
-				} else if action == "6" {
-					action = ""
-					fmt.Fprintln(conn, eliminarArchivoServer(mensaje))
+					if action == "1" { //Inicio Sesion
 
-				}
+						fmt.Fprintln(conn, validarUsuario(mensaje))
+						action = ""
+					} else if action == "2" { //Registrarse
+						fmt.Fprintln(conn, registrarUsuario(mensaje))
+						action = ""
+					} else if action == "3" { //Añadir Archivo
+						if !strings.Contains(msg, "FIN") {
+							data = data + msg
+						} else {
+							data = data + msg
+							fmt.Fprintln(conn, añadirArchivoServer(data))
+							action = ""
+							data = ""
+						}
+					} else if action == "4" { //Consultar archivos
+						action = ""
+						fmt.Fprintln(conn, consultarArchivosServer(mensaje))
+					} else if action == "5" {
+						action = ""
+						fmt.Fprintln(conn, descargarArchivoServer(mensaje))
 
+					} else if action == "6" {
+						action = ""
+						fmt.Fprintln(conn, eliminarArchivoServer(mensaje))
+
+					}
+				*/
 				// enviamos ack al cliente
 			}
 
