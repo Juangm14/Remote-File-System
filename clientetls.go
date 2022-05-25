@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	. "lajr1dominio.com/proy/structs"
 )
 
 var token = ""
@@ -29,31 +31,6 @@ No se cifra con clave pública información en general. En todo caso, se cifra c
  se cifra con clave pública. "No tenemos muy claro donde almacenar las claves privadas (AES) de los usuarios."
  Como comentamos por tutoría, las claves de los usuarios se derivan de su contraseña, pero no se almacenan, se mantienen en RAM mientras dure la sesión
 */
-type DataClient struct {
-	Action int        `json:"action"`
-	User   UserClient `json:"user"`
-}
-type UserClient struct {
-	Name     []byte     `json:"name"`
-	Password []byte     `json:"password"`
-	Archivo  FileClient `json:"archivo"`
-}
-
-type FileClient struct {
-	NameFile []byte `json:"nameFile"`
-	NameH    []byte `json:"nameH"`
-	Peso     int    `json:"peso"`
-	Data     []byte `json:"data"`
-	Token    []byte `json:"token"`
-}
-
-type RespuestaClient struct {
-	actionOrAny int
-	errorNum    int
-	Msg         string
-	file        FileClient
-	data        []byte
-}
 
 func msgNumber(valor int64, user string) string {
 	switch valor {
@@ -195,7 +172,7 @@ func hashear(password []byte) []byte {
 	return hash[:]
 }
 
-func iniciarSesion() DataClient {
+func iniciarSesion() DataS {
 	var name string
 	var password string
 
@@ -212,9 +189,9 @@ func iniciarSesion() DataClient {
 
 	key = []byte(password[0:16])
 	nameEnc := hashear([]byte(name))
-	info := DataClient{
+	info := DataS{
 		Action: 1,
-		User: UserClient{
+		User: UserS{
 			Name:     nameEnc,
 			Password: []byte(password),
 		},
@@ -237,7 +214,7 @@ func validarNombre(s string) int {
 	}
 	return valido
 }
-func registro() DataClient {
+func registro() DataS {
 	name := ""
 	scanner := bufio.NewScanner(os.Stdin)
 	nameValid := -1
@@ -252,7 +229,7 @@ func registro() DataClient {
 		}
 	}
 	if nameValid == -2 {
-		info := DataClient{
+		info := DataS{
 			Action: -1,
 		}
 		return info
@@ -289,9 +266,9 @@ func registro() DataClient {
 	key = []byte(hashedPassword[0:16])
 	nameEnc := hashear([]byte(name))
 
-	info := DataClient{
+	info := DataS{
 		Action: 2,
-		User: UserClient{
+		User: UserS{
 			Name:     nameEnc,
 			Password: hashedPassword,
 		},
@@ -311,7 +288,7 @@ func sacarNombreArchv(s string) string {
 	return s[pos+1 : len(s)]
 }
 
-func añadirArchivo(conn *tls.Conn) []byte {
+func añadirArchivo(conn *tls.Conn) DataS {
 
 	var ruta string
 
@@ -326,18 +303,27 @@ func añadirArchivo(conn *tls.Conn) []byte {
 	checkErrorCliente(err)
 
 	nombreCifrado := AesEncrypt([]byte(sacarNombreArchv(ruta)), key)
-
+	nombreHasheado := hashear([]byte(sacarNombreArchv(ruta)))
 	mensaje := "3#" + string(nombreCifrado) + "| " + strconv.FormatInt(fileInformation.Size(), 10) + "| " + token + "| "
 
 	buff := make([]byte, fileInformation.Size())
 
 	_, err = file.Read(buff)
 
-	nameEnc := AesEncrypt(buff, key)
+	content := AesEncrypt(buff, key)
 
-	mensaje += string(nameEnc) + "| FIN"
-
-	return []byte(mensaje)
+	mensaje += string(content) + "| FIN"
+	info := DataS{
+		Action: 3,
+		User: UserS{
+			Archivo: FileS{NameFile: nombreCifrado,
+				NameH: nombreHasheado,
+				Peso:  int(fileInformation.Size()),
+				Data:  content,
+				Token: []byte(token)},
+		},
+	}
+	return info
 }
 
 func controladorConsulta(consulta string) []string {
@@ -458,18 +444,17 @@ func client(ip string, port string) {
 	for salida != "0" {
 
 		salida = menu()
-
 		if salida == "1" && token == "" {
 			user := iniciarSesion() //Iniciamos sesion
 			enc := json.NewEncoder(conn)
 			enc.Encode(user) //Tiramos mensaje encoded a la conexión
 
 			dec := json.NewDecoder(conn)
-			var resp RespuestaClient
+			var resp RespuestaS
 			dec.Decode(&resp) // Recibimos la respuesta
 			fmt.Println(resp.Msg)
-			if resp.actionOrAny != -1 {
-				token = string(resp.actionOrAny)
+			if resp.ActAny != -1 {
+				token = strconv.Itoa(resp.ActAny)
 			}
 		} else if salida == "2" && token == "" {
 			user := registro()
@@ -478,7 +463,7 @@ func client(ip string, port string) {
 				enc.Encode(user)
 
 				dec := json.NewDecoder(conn)
-				var resp RespuestaClient
+				var resp RespuestaS
 				dec.Decode(&resp)
 				fmt.Println(resp.Msg)
 			} else {
@@ -489,11 +474,15 @@ func client(ip string, port string) {
 				ids := llamadaConsultar(conn)
 				ids = ids
 			} else if salida == "2" {
-				netscan := bufio.NewScanner(conn)
-				fileContent := añadirArchivo(conn)
-				fmt.Fprintln(conn, string(fileContent))
-				netscan.Scan()
-				fmt.Println("servidor: " + netscan.Text())
+
+				archivoInfo := añadirArchivo(conn) //Añadimos archivo
+				enc := json.NewEncoder(conn)
+				enc.Encode(archivoInfo) //Tiramos mensaje encoded a la conexión
+
+				dec := json.NewDecoder(conn)
+				var resp RespuestaS
+				dec.Decode(&resp)
+				fmt.Println(resp.Msg)
 			} else if salida == "3" {
 				ids := llamadaConsultar(conn)
 				descargarArchivo(conn, ids)

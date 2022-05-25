@@ -13,35 +13,10 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
+	. "lajr1dominio.com/proy/structs"
 
 	_ "github.com/mattn/go-sqlite3"
 )
-
-type DataServer struct {
-	Action int        `json:"action"`
-	User   UserServer `json:"user"`
-}
-type UserServer struct {
-	Name     []byte     `json:"name"`
-	Password []byte     `json:"password"`
-	Archivo  FileServer `json:"archivo"`
-}
-
-type FileServer struct {
-	NameFile []byte `json:"nameFile"`
-	NameH    []byte `json:"nameH"`
-	Peso     int    `json:"peso"`
-	Data     []byte `json:"data"`
-	Token    []byte `json:"token"`
-}
-
-type RespuestaServer struct {
-	actionOrAny int
-	errorNum    int
-	Msg         string
-	file        FileServer
-	data        []byte
-}
 
 // Meter tambien en la base de datos el nombre hasheado
 func checkErrorServer(e error) {
@@ -49,7 +24,10 @@ func checkErrorServer(e error) {
 		println(e.Error())
 	}
 }
+func ErrorRespuesta() RespuestaS {
 
+	return RespuestaS{ActAny: -1, ErrNum: 2, Msg: "Ha habido un error "}
+}
 func consultarArchivosServer(sesion string) string {
 	db, err := sql.Open("sqlite3", "user.db")
 	checkErrorServer(err)
@@ -76,11 +54,10 @@ func consultarArchivosServer(sesion string) string {
 	return datos
 }
 
-func validarUsuario(sesion DataServer) RespuestaServer {
+func validarUsuario(sesion DataS) RespuestaS {
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
 
-	respError := RespuestaServer{actionOrAny: -1, errorNum: 2, Msg: "Ha habido un error registrandose"}
 	sentencia := `Select name, password, id from user where name = ?`
 
 	statement, err := db.Prepare(sentencia)
@@ -114,20 +91,19 @@ func validarUsuario(sesion DataServer) RespuestaServer {
 	passwordSalted := pbkdf2.Key([]byte(sesion.User.Password), salt, 4096, 32, sha512.New512_256)
 
 	if name == string(sesion.User.Name) && string(passwordSalted) == password {
-		resp := RespuestaServer{
-			actionOrAny: id,
-			Msg:         "Has iniciado sesión correctamente",
+		resp := RespuestaS{
+			ActAny: id,
+			Msg:    "Has iniciado sesión correctamente",
 		}
 		return resp
 	}
 
-	return respError
+	return ErrorRespuesta()
 }
 
-func registrarUsuario(sesion DataServer) RespuestaServer {
+func registrarUsuario(sesion DataS) RespuestaS {
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
-	respError := RespuestaServer{actionOrAny: -1, errorNum: 2, Msg: "Ha habido un error registrandose"}
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -144,7 +120,7 @@ func registrarUsuario(sesion DataServer) RespuestaServer {
 
 	v, err := statement.Exec(sesion.User.Name, password)
 	if err != nil {
-		return respError
+		return ErrorRespuesta()
 	} else if v != nil {
 		sentenciaUser := `select id from user where name=?`
 		statement, err = db.Prepare(sentenciaUser)
@@ -166,19 +142,18 @@ func registrarUsuario(sesion DataServer) RespuestaServer {
 		v, err = statement.Exec(userID, salt)
 		ruta := "./Servidor/" + string(sesion.User.Name)
 		os.Mkdir(ruta, os.ModePerm)
-		resp := RespuestaServer{
-			actionOrAny: 1,
-			errorNum:    0,
-			Msg:         "Se ha registrado el usuario correctamente",
+		resp := RespuestaS{
+			ActAny: 1,
+			Msg:    "Se ha registrado el usuario correctamente",
 		}
 		return resp
 	}
 
-	return respError
+	return ErrorRespuesta()
 }
 
-func getVersion(idUsuario string, nombreArchivo string) int {
-	sentenciaSelect := `select MAX(version) from file where userId = ? and name = ?`
+func getVersion(idUsuario string, nombreArchivo []byte) int {
+	sentenciaSelect := `select MAX(version) from file where userId = ? and nameHashed = ?`
 
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
@@ -199,14 +174,7 @@ func getVersion(idUsuario string, nombreArchivo string) int {
 	return version
 }
 
-func añadirArchivoServer(msg string) int {
-
-	partesMensaje := strings.Split(msg, "| ")
-
-	nombreArchivo := partesMensaje[0][2:len(partesMensaje[0])]
-	pesoArchivo := partesMensaje[1]
-	idUsuario := partesMensaje[2]
-	contenido := partesMensaje[3]
+func añadirArchivoServer(sesion DataS) RespuestaS {
 
 	db, err := sql.Open("sqlite3", "user.db")
 	defer db.Close()
@@ -215,8 +183,8 @@ func añadirArchivoServer(msg string) int {
 		log.Fatalln(err.Error())
 	}
 
-	version := getVersion(idUsuario, nombreArchivo)
-	sentencia := `insert into file (userId,name,peso,version,content) values (?, ?, ?, ?, ?)`
+	version := getVersion(string(sesion.User.Archivo.Token), sesion.User.Archivo.NameH)
+	sentencia := `insert into file (userId,name,nameHashed,peso,version,content) values (?,?, ?, ?, ?, ?)`
 
 	statement, err := db.Prepare(sentencia)
 
@@ -224,13 +192,21 @@ func añadirArchivoServer(msg string) int {
 		log.Fatalln(err.Error())
 	}
 
-	_, err = statement.Exec(idUsuario, nombreArchivo, pesoArchivo, version+1, contenido)
+	_, err = statement.Exec(string(sesion.User.Archivo.Token), sesion.User.Archivo.NameFile,
+		sesion.User.Archivo.NameH, sesion.User.Archivo.Peso, version+1, sesion.User.Archivo.Data)
 
 	if err != nil {
 		println(err.Error())
-		return 0
+		return ErrorRespuesta()
 	}
-	return 1
+	info := RespuestaS{
+		ActAny: 1,
+		Msg:    "Se ha podido subir tu archivo correctamente",
+	}
+	if version != 0 {
+		info.Msg = "Se ha subido la version " + strconv.Itoa(version+1) + " de tu archivo"
+	}
+	return info
 }
 
 func eliminarArchivoServer(mensaje string) string {
@@ -338,13 +314,10 @@ func servidor(ip string, port string) {
 
 			fmt.Println("conexión: ", conn.LocalAddr(), " <--> ", conn.RemoteAddr())
 
-			//action := ""
-			//mensaje := ""
-			//data := ""
 			exit := false
 			for !exit { // escaneamos la conexión
 				dec := json.NewDecoder(conn)
-				var msg DataServer
+				var msg DataS
 				dec.Decode(&msg)
 				switch msg.Action {
 				case 1:
@@ -353,6 +326,10 @@ func servidor(ip string, port string) {
 					enc.Encode(resp)
 				case 2:
 					resp := registrarUsuario(msg)
+					enc := json.NewEncoder(conn)
+					enc.Encode(resp)
+				case 3:
+					resp := añadirArchivoServer(msg)
 					enc := json.NewEncoder(conn)
 					enc.Encode(resp)
 				default:
