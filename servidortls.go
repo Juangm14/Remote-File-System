@@ -345,6 +345,42 @@ func servidor(ip string, port string) {
 				default:
 					exit = true
 				}
+
+				/*
+					if action == "" {
+						mensaje, action = splitFuncServer(msg)
+					}
+
+					if action == "1" { //Inicio Sesion
+
+						fmt.Fprintln(conn, validarUsuario(mensaje))
+						action = ""
+					} else if action == "2" { //Registrarse
+						fmt.Fprintln(conn, registrarUsuario(mensaje))
+						action = ""
+					} else if action == "3" { //Añadir Archivo
+						if !strings.Contains(msg, "FIN") {
+							data = data + msg
+						} else {
+							data = data + msg
+							fmt.Fprintln(conn, añadirArchivoServer(data))
+							action = ""
+							data = ""
+						}
+					} else if action == "4" { //Consultar archivos
+						action = ""
+						fmt.Fprintln(conn, consultarArchivosServer(mensaje))
+					} else if action == "5" {
+						action = ""
+						fmt.Fprintln(conn, descargarArchivoServer(mensaje))
+
+					} else if action == "6" {
+						action = ""
+						fmt.Fprintln(conn, eliminarArchivoServer(mensaje))
+
+					}
+				*/
+				// enviamos ack al cliente
 			}
 
 			conn.Close() // cerramos al finalizar el cliente (EOF se envía con ctrl+d o ctrl+z según el sistema)
