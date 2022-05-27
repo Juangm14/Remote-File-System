@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"bufio"
@@ -501,14 +501,7 @@ func client(ip string, port string) {
 	}
 }
 
-func main() {
-	ip := "127.0.0.1"
-	port := "8000"
-
-	if len(os.Args) == 2 {
-		ip = os.Args[1]
-		port = os.Args[2]
-	}
+func Client(ip string, port string) {
 
 	client(ip, port)
 }

@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"crypto/sha512"
@@ -325,15 +325,7 @@ func servidor(ip string, port string) {
 	}
 }
 
-func main() {
-
-	ip := "127.0.0.1"
-	port := "8000"
-
-	if len(os.Args) == 2 {
-		ip = os.Args[1]
-		port = os.Args[2]
-	}
+func Server(ip string, port string) {
 
 	servidor(ip, port)
 }
