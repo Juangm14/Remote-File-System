@@ -1,1 +1,0 @@
-Esto es una prueba para el funcionamiento de ficheros en go

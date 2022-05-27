@@ -12,10 +12,38 @@ import (
 	"strconv"
 
 	"golang.org/x/crypto/pbkdf2"
-	. "lajr1dominio.com/proy/structs"
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+type DataS struct {
+	Action int   `json:"action"`
+	User   UserS `json:"user"`
+}
+type UserS struct {
+	Name     []byte `json:"name"`
+	Password []byte `json:"password"`
+	Archivo  FileS  `json:"archivo"`
+}
+
+type FileS struct {
+	NameFile []byte `json:"nameFile"`
+	NameH    []byte `json:"nameH"`
+	Peso     int    `json:"peso"`
+	Data     []byte `json:"data"`
+	Token    []byte `json:"token"`
+	Id       int
+	Version  int
+}
+
+type RespuestaS struct {
+	ActAny int
+	ErrNum int
+	Msg    string
+	File   FileS
+	Data   []byte
+	Files  []FileS
+}
 
 // Meter tambien en la base de datos el nombre hasheado
 func checkErrorServer(e error) {
@@ -317,6 +345,42 @@ func servidor(ip string, port string) {
 				default:
 					exit = true
 				}
+
+				/*
+					if action == "" {
+						mensaje, action = splitFuncServer(msg)
+					}
+
+					if action == "1" { //Inicio Sesion
+
+						fmt.Fprintln(conn, validarUsuario(mensaje))
+						action = ""
+					} else if action == "2" { //Registrarse
+						fmt.Fprintln(conn, registrarUsuario(mensaje))
+						action = ""
+					} else if action == "3" { //Añadir Archivo
+						if !strings.Contains(msg, "FIN") {
+							data = data + msg
+						} else {
+							data = data + msg
+							fmt.Fprintln(conn, añadirArchivoServer(data))
+							action = ""
+							data = ""
+						}
+					} else if action == "4" { //Consultar archivos
+						action = ""
+						fmt.Fprintln(conn, consultarArchivosServer(mensaje))
+					} else if action == "5" {
+						action = ""
+						fmt.Fprintln(conn, descargarArchivoServer(mensaje))
+
+					} else if action == "6" {
+						action = ""
+						fmt.Fprintln(conn, eliminarArchivoServer(mensaje))
+
+					}
+				*/
+				// enviamos ack al cliente
 			}
 
 			conn.Close() // cerramos al finalizar el cliente (EOF se envía con ctrl+d o ctrl+z según el sistema)
